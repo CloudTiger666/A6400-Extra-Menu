@@ -31,7 +31,7 @@ if ! ( set -C; : > "$BOOTLOG" ) 2>/dev/null; then
     ( set -C; : > "$BOOTLOG" ) 2>/dev/null || exit 1
 fi
 exec >> "$BOOTLOG" 2>&1 || exit 1
-echo "FILM_LOCAL_BOOT_BEGIN package=@@PACKAGE_ID@@ pid=$$ version=V4.1-SLEM-hany"
+echo "FILM_LOCAL_BOOT_BEGIN package=@@PACKAGE_ID@@ pid=$$ version=V4.2.1-DEXP-hany"
 fail() { echo "FILM_LOCAL_BOOT_FAIL stage=$1"; exit 1; }
 hash_is() {
     test -f "$1" && test ! -L "$1" || return 1

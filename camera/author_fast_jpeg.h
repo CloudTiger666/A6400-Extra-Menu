@@ -900,4 +900,106 @@ static int render_author_fast(int fd,const char *path,int preset,int grain,int h
         (unsigned)((work.mask_size+1023)/1024),preset,grain,halo);
     return 0;
 }
+
+static inline unsigned char author_blend_byte(unsigned a,unsigned b,int mode) {
+    if (mode==(int)A6400_DEXP_LIGHTEN) return (unsigned char)(a>b?a:b);
+    if (mode==(int)A6400_DEXP_AVERAGE) return (unsigned char)((a+b+1u)>>1);
+    /* Default A6400_DEXP_SCREEN: 255 - round((255-a)*(255-b)/255) without division. */
+    unsigned t=(255u-a)*(255u-b)+128u;
+    return (unsigned char)(255u-((t+(t>>8))>>8));
+}
+
+static void author_blend_pixels(unsigned char *dst,int w1,int h1,
+                                const unsigned char *src,int w2,int h2,int mode) {
+    if (w1==w2 && h1==h2) {
+        unsigned long total=(unsigned long)w1*(unsigned long)h1*3ul;
+        for (unsigned long i=0;i<total;++i)
+            dst[i]=author_blend_byte(dst[i],src[i],mode);
+        return;
+    }
+    for (int y=0;y<h1;++y) {
+        int sy=(int)(((unsigned long)y*(unsigned)h2)/(unsigned)h1);
+        if (sy>=h2) sy=h2-1;
+        unsigned char *drow=dst+(unsigned long)y*(unsigned)w1*3ul;
+        const unsigned char *srow=src+(unsigned long)sy*(unsigned)w2*3ul;
+        for (int x=0;x<w1;++x) {
+            int sx=(int)(((unsigned long)x*(unsigned)w2)/(unsigned)w1);
+            if (sx>=w2) sx=w2-1;
+            unsigned char *dp=drow+(unsigned)x*3u;
+            const unsigned char *sp=srow+(unsigned)sx*3u;
+            dp[0]=author_blend_byte(dp[0],sp[0],mode);
+            dp[1]=author_blend_byte(dp[1],sp[1],mode);
+            dp[2]=author_blend_byte(dp[2],sp[2],mode);
+        }
+    }
+}
+
+static int author_select_and_decode(int fd,int want_hires,author_image *image) {
+    unsigned offset=0,length=0;
+    int found=0,result=4;
+    if (want_hires) {
+        long size=sys_lseek(fd,0,2);
+        if (size>=4 && (unsigned long)size<=MAX_INPUT_BYTES)
+            result=author_decode(fd,0,(unsigned)size,1,image);
+        if (result) {
+            found=author_preview(fd,&offset,&length);
+            if (found>0) result=author_decode(fd,offset,length,0,image);
+        }
+    } else {
+        found=author_preview(fd,&offset,&length);
+        if (found>0) result=author_decode(fd,offset,length,0,image);
+        if (result) {
+            long size=sys_lseek(fd,0,2);
+            if (size>=4 && (unsigned long)size<=MAX_INPUT_BYTES)
+                result=author_decode(fd,0,(unsigned)size,1,image);
+        }
+    }
+    return result;
+}
+
+/* Pure Double Exposure blender (no LUT applied, keeping Cortex-A5 CPU load minimal). */
+static int render_author_dexp(int fd1,int fd2,const char *path,int blend_mode,
+                              unsigned char *metadata,unsigned metadata_size,int hires,
+                              const char *preview_path) {
+    unsigned begin=film_clock_ms();
+    unsigned orient=author_metadata_orientation(metadata,metadata_size);
+    int want_hires=(hires>=1)?1:0;
+    author_image img1;
+    int r1=author_select_and_decode(fd1,want_hires,&img1);
+    if (r1) { printf("FILM_ERROR dexp_decode1=%d\n",r1); return r1; }
+    {
+        author_image img2;
+        int r2=author_select_and_decode(fd2,img1.reduced?1:0,&img2);
+        if (r2 && img1.reduced) r2=author_select_and_decode(fd2,0,&img2);
+        if (r2) { printf("FILM_ERROR dexp_decode2=%d\n",r2); return r2; }
+        author_blend_pixels(img1.pixels,img1.width,img1.height,
+                            img2.pixels,img2.width,img2.height,blend_mode);
+    }
+    unsigned blended=film_clock_ms();
+    author_metadata_size(metadata,metadata_size,(unsigned)img1.width,(unsigned)img1.height);
+    int out=sys_open(path,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW,0600);
+    if (out<0) { printf("FILM_ERROR output_open=%d\n",out); return 6; }
+    output_stream output(out,metadata,metadata_size);
+    jpge::params settings; settings.m_quality=90; settings.m_subsampling=jpge::H2V2;
+    jpge::jpeg_encoder encoder;
+    int result=encoder.init(&output,img1.width,img1.height,3,settings)?0:7;
+    for (int y=0;!result && y<img1.height;++y)
+        if (!encoder.process_scanline(img1.pixels+(unsigned long)y*(unsigned)img1.width*3u)) result=10;
+    if (!result && !encoder.process_scanline(NULL)) result=11;
+    encoder.deinit();
+    int flushed=film_fsync(out),closed=sys_close(out);
+    if (result || output.failed || flushed || closed || !output.bytes) {
+        sys_unlink(path);
+        printf("FILM_ERROR dexp_render=%d output_failed=%d\n",result,output.failed);
+        return 12;
+    }
+    if (preview_path && preview_path[0])
+        author_emit_preview_pkg(preview_path,img1.pixels,img1.width,img1.height,orient);
+    unsigned finished=film_clock_ms();
+    printf("FILM_TIMING select_ms=0 decode_ms=%u film_ms=0 encode_ms=%u total_ms=%u\n",
+        blended-begin,finished-blended,finished-begin);
+    printf("FILM_DONE width=%d height=%d bytes=%u rgb_kib=%u mask_kib=0 preset=%d grain=0 halation=0 dexp=%d\n",
+        img1.width,img1.height,output.bytes,(img1.bytes+1023u)/1024u,blend_mode,blend_mode);
+    return 0;
+}
 #endif

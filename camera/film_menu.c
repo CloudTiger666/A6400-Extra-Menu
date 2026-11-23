@@ -102,11 +102,12 @@ int film_menu_hit(int page, int x, int y) {
         return -1;
     }
     if (page == FILM_MENU_V4) {
-        /* Advanced Details subpage (inside LUT): Popup, Native Touch, Reset + Back. */
+        /* Advanced Details subpage: 0=Popup, 1=Native Touch, 3=Reset, 4=Double Exposure + Back. */
         if (x >= 56 && x < 584) {
             if (y >= 90 && y < 150) return 0;
             if (y >= 162 && y < 222) return 1;
             if (y >= 234 && y < 294) return 3;
+            if (y >= 306 && y < 366) return 4;
         }
         if (y >= 398 && y < 440) {
             if (x >= 56 && x < 236) return 6;
@@ -175,6 +176,8 @@ static unsigned activate(struct film_menu *m, int row) {
                 m->settings.halation = 1;
                 change |= FILM_MENU_SETTINGS_CHANGED;
             }
+        } else if (row == 4) {
+            change |= FILM_MENU_DEXP_TOGGLED;
         } else if (row == 6) {
             m->page = FILM_MENU_DETAILS;
         } else if (row == 5) {

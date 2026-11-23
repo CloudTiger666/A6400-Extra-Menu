@@ -206,6 +206,7 @@ def build_diag_commands():
         ("RUNTIME_LOG", "/bin/busybox tail -n 80 /tmp_bt/a6400-film-capture.runtime.log 2>&1 || true"),
         ("MANIFEST", "/bin/busybox cat /tmp_bt/a6400-film-capture.manifest 2>&1 || true"),
         ("JOB_LOG", "/bin/busybox tail -n 60 /tmp_bt/a6400-film-capture.job.log 2>&1 || true"),
+        ("IM_MAPS", "/bin/busybox grep -E 'libObj|viewUnified2|CautionConfig' /proc/152/maps 2>&1 || true"),
     ]
 
 

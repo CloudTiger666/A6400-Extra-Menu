@@ -549,14 +549,46 @@ static void push_v4_ring_to_ui(int bump_latest_seq) {
         img.session_shots=v4_ring.session_shots;
         memcpy(img.shot_slots,v4_ring.shot_slots,sizeof(img.shot_slots));
         memcpy(img.slot_labels,v4_ring.slot_labels,sizeof(img.slot_labels));
-        /* album_count / album_truncated belong to the TEST index, not this ring. */
+        /* album_count is the TEST index. Stop before dexp_mode so a ring publish
+         * cannot clear Double Exposure or the album request fields. */
         size_t tail_off=offsetof(struct a6400_ui_v4_v1,album_head);
-        size_t tail_end=offsetof(struct a6400_ui_v4_v1,album_truncated);
+        size_t tail_end=offsetof(struct a6400_ui_v4_v1,dexp_mode);
         (void)pwrite(fd,((const unsigned char *)&img)+tail_off,tail_end-tail_off,(off_t)(base+tail_off));
         if(bump_latest_seq) {
             size_t seq_off=offsetof(struct a6400_ui_v4_v1,latest_seq);
             (void)pwrite(fd,&img.latest_seq,4u,(off_t)(base+seq_off));
         }
+    }
+    close(fd);
+}
+
+static uint32_t read_ui_dexp(uint32_t *out_seq) {
+    if(out_seq)*out_seq=0u;
+    uint32_t base=0;
+    int fd=open_ui_region(FILM_DAEMON_V4_RVA,sizeof(struct a6400_ui_v4_v1),0,&base);
+    if(fd<0)return 0u;
+    uint32_t hdr[2]={0,0},dexp[2]={0,0};
+    size_t doff=offsetof(struct a6400_ui_v4_v1,dexp_mode);
+    if(pread(fd,hdr,sizeof(hdr),(off_t)base)==(ssize_t)sizeof(hdr) &&
+       hdr[0]==A6400_V4_MAGIC && hdr[1]==A6400_V4_VERSION &&
+       pread(fd,dexp,sizeof(dexp),(off_t)(base+doff))==(ssize_t)sizeof(dexp)) {
+        close(fd);
+        if(out_seq)*out_seq=dexp[1];
+        return dexp[0]<=A6400_DEXP_AVERAGE?dexp[0]:0u;
+    }
+    close(fd);
+    return 0u;
+}
+
+static void push_v4_dexp_pending(uint32_t pending_val) {
+    uint32_t base=0;
+    int fd=open_ui_region(FILM_DAEMON_V4_RVA,sizeof(struct a6400_ui_v4_v1),1,&base);
+    if(fd<0)return;
+    uint32_t hdr[2]={0,0};
+    size_t poff=offsetof(struct a6400_ui_v4_v1,dexp_pending);
+    if(pread(fd,hdr,sizeof(hdr),(off_t)base)==(ssize_t)sizeof(hdr) &&
+       hdr[0]==A6400_V4_MAGIC && hdr[1]==A6400_V4_VERSION) {
+        (void)pwrite(fd,&pending_val,4u,(off_t)(base+poff));
     }
     close(fd);
 }
@@ -659,6 +691,8 @@ static void stop_preview_subsystem(void) {}
 static void publish_v4_shot(int applied,const char *settings,const char *target,int hires) {
     (void)applied;(void)settings;(void)target;(void)hires;
 }
+static uint32_t read_ui_dexp(uint32_t *out_seq) { if(out_seq)*out_seq=0u; return 0u; }
+static void push_v4_dexp_pending(uint32_t pending_val) { (void)pending_val; }
 #endif
 static unsigned count_active_queue(void) {
     unsigned n=0;
@@ -767,6 +801,84 @@ static int run_job(struct queued *q,const char *settings,int hires) {
     own_inflight=0;
     printf("FILM_CAPTURE_JOB_DONE result=%d path=%s target=%s applied=%u failed=%u uptime_ms=%u\n",
            rc,q->entry.path,q->target,applied_jobs,failed_jobs,(unsigned)now_ms());
+    return 0;
+}
+
+static const char *dexp_arg_name(uint32_t mode) {
+    if(mode==A6400_DEXP_LIGHTEN)return "lighten";
+    if(mode==A6400_DEXP_AVERAGE)return "average";
+    return "screen";
+}
+
+static const char *dexp_ui_name(uint32_t mode) {
+#ifdef A6400_UI_LANG_SC
+    if(mode==A6400_DEXP_LIGHTEN)return "变亮";
+    if(mode==A6400_DEXP_AVERAGE)return "平均";
+    return "滤色";
+#else
+    if(mode==A6400_DEXP_LIGHTEN)return "變亮";
+    if(mode==A6400_DEXP_AVERAGE)return "平均";
+    return "濾色";
+#endif
+}
+
+static int run_dexp_job(const char *source1,unsigned bytes1,struct queued *q,uint32_t dmode,int hires) {
+    if(capture_log_bad() || !pins() || !absent_file(FILM_CAPTURE_JOB_LOCK) || !absent_file(FILM_CAPTURE_INFLIGHT))return 21;
+    int flags=O_WRONLY|O_CREAT|O_NOFOLLOW|(own_log?O_TRUNC:O_EXCL);
+    int log=open(FILM_CAPTURE_JOB_LOG,flags,0600);if(log<0)return 21;
+    own_log=1;
+    q->state=INFLIGHT;phase="job_prepare";
+    char dsettings[96];
+    snprintf(dsettings,sizeof(dsettings),"FILM_DEXP mode=%s src1=%.40s",dexp_arg_name(dmode),source1);
+    if(save_inflight(q,dsettings) || save_manifest()){close(log);return 21;}
+    int gate[2];if(pipe(gate)){close(log);return 21;}
+    job_pid=fork();
+    if(job_pid<0){close(log);close(gate[0]);close(gate[1]);job_pid=0;return 21;}
+    if(!job_pid) {
+        close(gate[1]);char token;
+        ssize_t n;do n=read(gate[0],&token,1);while(n<0 && errno==EINTR);
+        close(gate[0]);if(n!=1 || token!='G')_exit(125);
+        if(dup2(log,1)<0 || dup2(log,2)<0)_exit(126);
+        close(log);char source2[40],b1[16],b2[16];
+        if(source_path(&q->entry,source2,sizeof(source2)))_exit(124);
+        snprintf(b1,sizeof(b1),"%u",bytes1);
+        snprintf(b2,sizeof(b2),"%u",q->entry.size);
+        const char *qarg=(hires>=1)?"hires":(char *)0;
+        const char *marg=dexp_arg_name(dmode);
+        execl("/bin/sh","sh",FILM_CAPTURE_SCRIPT,"dexp",source1,b1,source2,b2,q->target,marg,qarg,(char *)0);
+        _exit(127);
+    }
+    close(log);close(gate[0]);phase="job";
+    if(save_inflight(q,dsettings) || save_manifest()) {
+        close(gate[1]);reap_readonly(job_pid);job_pid=0;return 21;
+    }
+    char token='G';ssize_t released=write(gate[1],&token,1);close(gate[1]);
+    if(released!=1){reap_readonly(job_pid);job_pid=0;return 21;}
+    uint32_t start=now_ms();int status;
+    for(;;) {
+        pid_t got=waitpid(job_pid,&status,WNOHANG);
+        if(got==job_pid)break;
+        if(got<0 && errno!=EINTR)return 21;
+        if((uint32_t)(now_ms()-start)>=FILM_CAPTURE_JOB_TIMEOUT_MS) {
+            printf("FILM_CAPTURE_JOB_UNCONFIRMED reason=deadline pid=%u\n",(unsigned)job_pid);
+            return 21;
+        }
+        pause_ms(10);
+    }
+    job_pid=0;
+    int retained=0,receipt=read_job_receipt(q,&retained,status);
+    if(!WIFEXITED(status) || WEXITSTATUS(status)==21 || retained ||
+       !absent_file(FILM_CAPTURE_JOB_LOCK) || receipt<0)return 21;
+    int rc=WEXITSTATUS(status);
+    if(!rc && receipt!=1)return 21;
+    if(rc && receipt)return 21;
+    q->state=rc?FAILED:APPLIED;
+    if(rc)++failed_jobs;else ++applied_jobs;
+    phase="scanning";
+    if(save_manifest() || unlink(FILM_CAPTURE_INFLIGHT))return 21;
+    own_inflight=0;
+    printf("FILM_CAPTURE_DEXP_DONE result=%d src1=%s path=%s target=%s mode=%s applied=%u failed=%u uptime_ms=%u\n",
+           rc,source1,q->entry.path,q->target,dexp_arg_name(dmode),applied_jobs,failed_jobs,(unsigned)now_ms());
     return 0;
 }
 static void compact_superseded_baseline(const struct catalogue *current) {
@@ -1285,6 +1397,9 @@ int main(int argc,char **argv) {
     int post_trigger_follow=0,early_toast_sent=0;
     (void)early_toast_sent;
     unsigned batch_done=0;
+    int dexp_first_valid=0;
+    char dexp_first_path[40]="";
+    unsigned dexp_first_bytes=0u;
     char latest_dcim_dir[48]="";
     update_latest_dir(latest_dcim_dir,sizeof(latest_dcim_dir),&current);
     while(1) {
@@ -1293,6 +1408,11 @@ int main(int argc,char **argv) {
         if(stop<0){reason="stop_marker";break;}
         if(daemon_signal){result=20;reason="signal";break;}
         if(stop){result=0;reason="stop_file";break;}
+        if(dexp_first_valid && read_ui_dexp(NULL)==0u) {
+            dexp_first_valid=0;dexp_first_path[0]=0;dexp_first_bytes=0u;
+            push_v4_dexp_pending(0u);
+            puts("FILM_DEXP_CANCELLED_IDLE");
+        }
         if(!FILM_CAPTURE_PERSISTENT && (uint32_t)(now_ms()-start)>=FILM_CAPTURE_ACTIVE_MS) {
             result=0;reason="expired";break;
         }
@@ -1405,6 +1525,80 @@ int main(int argc,char **argv) {
             transport_stop(&transport);post_trigger_follow=0;
             if(daemon_signal || stop_requested()!=0)continue;
             struct queued *q=&queue[pending];char settings[128];
+            uint32_t dmode=read_ui_dexp(NULL);
+            if(dmode!=0u) {
+                /* Double Exposure mode is active (strictly mutually exclusive with LUT). */
+                char src_cur[40];
+                if(source_path(&q->entry,src_cur,sizeof(src_cur))==0) {
+                    if(!dexp_first_valid) {
+                        snprintf(dexp_first_path,sizeof(dexp_first_path),"%s",src_cur);
+                        dexp_first_bytes=q->entry.size;
+                        dexp_first_valid=1;
+                        q->state=OFF;++off_jobs;
+                        push_v4_dexp_pending(1u);
+                        publish_v4_shot(0,NULL,NULL,0);
+                        char tmsg[64];
+#ifdef A6400_UI_LANG_SC
+                        snprintf(tmsg,sizeof(tmsg),"双重曝光 1/2 已拍 (%s) — 请拍第2张",dexp_ui_name(dmode));
+#else
+                        snprintf(tmsg,sizeof(tmsg),"雙重曝光 1/2 已拍 (%s) — 請拍第2張",dexp_ui_name(dmode));
+#endif
+                        push_ui_toast(1u,8000u,tmsg);
+                        printf("FILM_DEXP_SHOT1 source=%s bytes=%u mode=%s uptime_ms=%u\n",
+                               dexp_first_path,dexp_first_bytes,dexp_arg_name(dmode),(unsigned)now_ms());
+                    } else {
+                        int hires=read_ui_hires();
+                        int eff_hires=(hires>=1)?1:0;
+                        make_target_path(&q->entry,next_output,q->target,sizeof(q->target));
+                        next_output=(next_output+1u)%1000u;
+                        push_v4_dexp_pending(2u);
+                        push_ui_status(1u);
+                        char tmsg[64];
+#ifdef A6400_UI_LANG_SC
+                        snprintf(tmsg,sizeof(tmsg),"双曝 2/2 合成中 (%s%s)...",dexp_ui_name(dmode),eff_hires?" 6MP":"");
+#else
+                        snprintf(tmsg,sizeof(tmsg),"雙曝 2/2 合成中 (%s%s)...",dexp_ui_name(dmode),eff_hires?" 6MP":"");
+#endif
+                        push_ui_toast(1u,eff_hires?45000u:18000u,tmsg);
+                        early_toast_sent=0;
+                        unsigned prev_applied=applied_jobs;
+                        int jrc=run_dexp_job(dexp_first_path,dexp_first_bytes,q,dmode,eff_hires);
+                        dexp_first_valid=0;dexp_first_path[0]=0;dexp_first_bytes=0u;
+                        push_v4_dexp_pending(0u);
+                        if(jrc) {
+#ifdef A6400_UI_LANG_SC
+                            push_ui_toast(3u,3500u,"双曝合成失败 (未确认)");
+#else
+                            push_ui_toast(3u,3500u,"雙曝合成失敗 (未確認)");
+#endif
+                            push_ui_status(0u);
+                            result=21;retain_lock=1;reason="job_uncertain";break;
+                        }
+                        int did_apply=(applied_jobs>prev_applied);
+                        char dcap[48];
+                        snprintf(dcap,sizeof(dcap),"preset=dexp_%s",dexp_arg_name(dmode));
+                        publish_v4_shot(did_apply,dcap,q->target,eff_hires);
+                        const char *base=strrchr(q->target,'/');
+                        base=base?base+1:q->target;
+#ifdef A6400_UI_LANG_SC
+                        if(did_apply)snprintf(tmsg,sizeof(tmsg),"双曝 2/2 完成 (%s %.14s)",dexp_ui_name(dmode),base);
+                        else snprintf(tmsg,sizeof(tmsg),"双曝 2/2 失败: %.32s",last_job_fail_hint[0]?last_job_fail_hint:dexp_ui_name(dmode));
+#else
+                        if(did_apply)snprintf(tmsg,sizeof(tmsg),"雙曝 2/2 完成 (%s %.14s)",dexp_ui_name(dmode),base);
+                        else snprintf(tmsg,sizeof(tmsg),"雙曝 2/2 失敗: %.32s",last_job_fail_hint[0]?last_job_fail_hint:dexp_ui_name(dmode));
+#endif
+                        push_ui_toast(did_apply?2u:3u,4000u,tmsg);
+                        push_ui_status(count_active_queue());
+                        post_trigger_follow=1;
+                    }
+                    if(save_manifest()){reason="manifest";break;}
+                    wait_before_scan(start,&post_trigger_follow);
+                    continue;
+                }
+            } else if(dexp_first_valid) {
+                dexp_first_valid=0;dexp_first_path[0]=0;dexp_first_bytes=0u;
+                push_v4_dexp_pending(0u);
+            }
             int gate=live_settings(settings,sizeof(settings));
             if(daemon_signal || stop_requested()!=0)continue;
             if(gate==10) {

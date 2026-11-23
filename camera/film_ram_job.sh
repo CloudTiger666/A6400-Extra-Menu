@@ -21,12 +21,16 @@ NATIVE_SHA=__NATIVE_SHA__
 WORKER_SHA=__WORKER_SHA__
 SETTINGS_SHA=__SETTINGS_SHA__
 INPUT=$RAM/input.jpg
+INPUT1=$RAM/input1.jpg
 OUTPUT=$RAM/output.jpg
 PREVIEW=$RAM/preview.bin
 PV_DIR=/tmp_bt/a6400-pv
 MODE=${1:-}
 SOURCE=${2:-}
 EXPECTED_BYTES=${3:-}
+SOURCE1=
+EXPECTED_BYTES1=0
+DEXP_MODE=
 TARGET=
 PRESET=
 GRAIN=
@@ -160,7 +164,7 @@ cleanup() {
         cleanup_mount=$?
         if test "$cleanup_mount" = 0; then
             # Only these fixed files belong to this job; never delete by glob.
-            "$BB" rm -f "$INPUT" "$OUTPUT" "$PREVIEW" || return 1
+            "$BB" rm -f "$INPUT" "$INPUT1" "$OUTPUT" "$PREVIEW" || return 1
             "$BB" umount "$RAM" || return 1
             ram_mount_state
             test "$?" = 1 || return 1
@@ -304,7 +308,7 @@ native_run() {
         case "$native_line" in NATIVE_SENT\ *) native_has_sent=1;; esac
     done < "$LOCK/native.current.log"
     exec 3>&-
-    if test "$MODE" = apply && test "$TARGET_ATTEMPTED" = 0 &&
+    if (test "$MODE" = apply || test "$MODE" = dexp) && test "$TARGET_ATTEMPTED" = 0 &&
        test "$native_op" = read && test "$native_rc" = 14 &&
        test ! -e "$INPUT" && test ! -L "$INPUT"; then
         report_kind=NATIVE_FAIL
@@ -312,7 +316,7 @@ native_run() {
         if native_report_ok && test "$report_fields" = 9 && guard; then return 14; fi
     fi
     if test "$native_rc" != 0 || test "$native_has_uncertain" = 1; then
-        if test "$native_rc" != 20 && test "$MODE" = apply && test "$TARGET_ATTEMPTED" = 0 && test "$native_op" = read; then
+        if test "$native_rc" != 20 && (test "$MODE" = apply || test "$MODE" = dexp) && test "$TARGET_ATTEMPTED" = 0 && test "$native_op" = read; then
             return 15
         fi
         if test "$native_rc" = 21 || test "$native_has_uncertain" = 1; then
@@ -343,8 +347,8 @@ decode_input() {
 }
 release_input() {
     guard && test -f "$INPUT" && test ! -L "$INPUT" || fail release_input_guard
-    "$BB" rm -f "$INPUT" || fail release_input
-    test ! -e "$INPUT" && test ! -L "$INPUT" || fail release_input
+    "$BB" rm -f "$INPUT" "$INPUT1" || fail release_input
+    test ! -e "$INPUT" && test ! -L "$INPUT" && test ! -e "$INPUT1" && test ! -L "$INPUT1" || fail release_input
 }
 read_settings() {
     if test "$settings_pinned" = 0; then
@@ -404,13 +408,14 @@ quiesce_partial_read_input() {
 }
 read_source_ready() {
     media_stage=$1
+    read_src=${2:-$SOURCE}
     media_waited_here=0
     read_retries=0
     while :; do
         guard || fail media_wait_guard 13
         test ! -e "$CAPTURE_STOP" || fail media_wait_stopped 20
-        if test "$media_waited_here" = 1 || test "$read_retries" -gt 0; then confirm_settings settings_after_media_wait; fi
-        native_run read "$SOURCE"
+        if test "$MODE" = apply && (test "$media_waited_here" = 1 || test "$read_retries" -gt 0); then confirm_settings settings_after_media_wait; fi
+        native_run read "$read_src"
         media_rc=$?
         if test "$media_rc" = 0; then
             if test "$media_waited_here" = 1; then
@@ -482,11 +487,32 @@ case "$MODE:$#" in
             ultra12m) HIRES_ARG=--ultra12m;;
             *) fail arguments;;
         esac;;
+    dexp:7) SOURCE1=$2;EXPECTED_BYTES1=$3;SOURCE=$4;EXPECTED_BYTES=$5;TARGET=$6;DEXP_MODE=$7;PRESET=dexp_$7;GRAIN=0;HALATION=0;;
+    dexp:8) SOURCE1=$2;EXPECTED_BYTES1=$3;SOURCE=$4;EXPECTED_BYTES=$5;TARGET=$6;DEXP_MODE=$7;PRESET=dexp_$7;GRAIN=0;HALATION=0
+        case "$8" in
+            hires) HIRES_ARG=--hires;;
+            ultra12m) HIRES_ARG=--ultra12m;;
+            *) fail arguments;;
+        esac;;
     *) fail arguments;;
 esac
 case "$EXPECTED_BYTES" in ''|0|0*|*[!0-9]*) fail expected_size;; esac
 test "${#EXPECTED_BYTES}" -le 8 || fail expected_size
-test "$((EXPECTED_BYTES+16777216+65536))" -le 33554432 || fail scratch_capacity
+if test "$MODE" = dexp; then
+    case "$EXPECTED_BYTES1" in ''|0|0*|*[!0-9]*) fail expected_size;; esac
+    test "${#EXPECTED_BYTES1}" -le 8 || fail expected_size
+    case "$DEXP_MODE" in screen|lighten|average) ;; *) fail arguments;; esac
+    test "$((EXPECTED_BYTES+EXPECTED_BYTES1+12582912+65536))" -le 41943040 || fail scratch_capacity
+    s1_tail=${SOURCE1#A:/DCIM/}
+    s1_dir=${s1_tail%%/*}
+    s1_file=${s1_tail#*/}
+    s1_name=${s1_file%.JPG}
+    test "${#s1_dir}" = 8 && test "${#s1_name}" = 8 &&
+        test "$SOURCE1" = "A:/DCIM/$s1_dir/$s1_name.JPG" || fail source_path
+    case "$s1_dir$s1_name" in *[!A-Za-z0-9_-]*) fail source_path;; esac
+else
+    test "$((EXPECTED_BYTES+16777216+65536))" -le 33554432 || fail scratch_capacity
+fi
 source_tail=${SOURCE#A:/DCIM/}
 source_dir=${source_tail%%/*}
 source_file=${source_tail#*/}
@@ -527,14 +553,23 @@ PHASE=mount
 manifest || fail manifest
 "$BB" mkdir "$RAM" || fail ram_directory
 ram_created=1
-"$BB" mount -t tmpfs -o size=33554432,nr_inodes=16,mode=700,nosuid,nodev,noexec a6400-film-job "$RAM"
+MOUNT_BYTES=33554432
+if test "$MODE" = dexp; then MOUNT_BYTES=41943040; fi
+"$BB" mount -t tmpfs -o size=$MOUNT_BYTES,nr_inodes=16,mode=700,nosuid,nodev,noexec a6400-film-job "$RAM"
 mount_rc=$?
 ram_mount_state
 mount_state=$?
 if test "$mount_state" = 2; then retain=1;fail mount_unconfirmed 21; fi
 test "$mount_rc" = 0 && test "$mount_state" = 0 || fail mount
 
-if test "$MODE" = apply; then
+if test "$MODE" = dexp; then
+    read_source_ready before_read1 "$SOURCE1"
+    file_bytes "$INPUT" && test "$FILE_BYTES" = "$EXPECTED_BYTES1" || fail source_size
+    "$BB" mv -f "$INPUT" "$INPUT1" || fail source_size
+    read_source_ready before_read "$SOURCE"
+    file_bytes "$INPUT" && test "$FILE_BYTES" = "$EXPECTED_BYTES" || fail source_size
+    INPUT_SHA=size:$EXPECTED_BYTES
+elif test "$MODE" = apply; then
     read_source_ready before_read
     file_bytes "$INPUT" && test "$FILE_BYTES" = "$EXPECTED_BYTES" || fail source_size
     INPUT_SHA=size:$EXPECTED_BYTES
@@ -553,10 +588,14 @@ worker_inflight=1
 clock_ms || :
 render_started=$CLOCK_MS
 PREVIEW_ARGS=
-if test "$MODE" = apply && test -d "$PV_DIR" && test ! -L "$PV_DIR"; then
+if (test "$MODE" = apply || test "$MODE" = dexp) && test -d "$PV_DIR" && test ! -L "$PV_DIR"; then
     PREVIEW_ARGS="--preview $PREVIEW"
 fi
-"$WORKER" "$PRESET" "$INPUT" "$OUTPUT" "$GRAIN" "$HALATION" $HIRES_ARG $PREVIEW_ARGS > "$LOCK/render.log" 2>&1 &
+if test "$MODE" = dexp; then
+    "$WORKER" --dexp "$DEXP_MODE" "$INPUT1" "$INPUT" "$OUTPUT" $HIRES_ARG $PREVIEW_ARGS > "$LOCK/render.log" 2>&1 &
+else
+    "$WORKER" "$PRESET" "$INPUT" "$OUTPUT" "$GRAIN" "$HALATION" $HIRES_ARG $PREVIEW_ARGS > "$LOCK/render.log" 2>&1 &
+fi
 worker_pid=$!
 manifest || fail manifest_worker
 wait "$worker_pid"
@@ -571,11 +610,11 @@ test "$worker_rc" = 0 && test "$render_done" = 1 || fail render
 stage_done render "$render_started"
 file_bytes "$OUTPUT" && test "$FILE_BYTES" -gt 0 && test "$FILE_BYTES" -le 16777216 || fail output_size
 OUTPUT_BYTES=$FILE_BYTES
-if test "$MODE" = apply; then
+if test "$MODE" = apply || test "$MODE" = dexp; then
     OUTPUT_SHA=flush_ok:$OUTPUT_BYTES
     PHASE=release_original_scratch
     release_input
-    confirm_settings settings_before_write
+    if test "$MODE" = apply; then confirm_settings settings_before_write; fi
     test ! -e "$CAPTURE_STOP" || fail stopped_before_write 20
     guard || fail pre_write_output
     TARGET_ATTEMPTED=1

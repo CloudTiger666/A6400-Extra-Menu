@@ -138,7 +138,7 @@ const char *model_toast_text(void) { return model_toast_label; }
             for name, content in headers.items():
                 (inc / name).write_text(content, encoding='utf-8')
             for name in ('film_menu.h', 'film_native_view.h', 'ui_trial_trace.h',
-                         'film_preview_fmt.h', 'mtf2_native_touch.h'):
+                         'film_preview_fmt.h', 'mtf2_native_touch.h', 'film_album_index.h'):
                 (inc / name).write_text((ROOT / 'camera' / name).read_text(encoding='utf-8'), encoding='utf-8')
             src = (ROOT / 'camera/native_film_ui_trial3.c').read_text(encoding='utf-8')
             body = model_c.replace('#include "native_film_ui_trial3.c"', src)
@@ -191,7 +191,7 @@ const char *model_toast_text(void) { return model_toast_label; }
             status.active_jobs = 0
             status.seq = 1
             lib.model_open_home()
-            self.assertIn('V4.1 SLEM', lib.model_header_text().decode('utf-8'))
+            self.assertIn('V4.2.1 SLEM', lib.model_header_text().decode('utf-8'))
             self.assertIn('已轉:7 (42/1024)', lib.model_header_text().decode('utf-8'))
             lib.model_open_details()
             self.assertEqual(lib.model_footer_text().decode('utf-8'), '細節設定 >')
@@ -297,7 +297,7 @@ void model_open_home(void) { ui.view.menu.visible=1; ui.view.menu.page=FILM_MENU
             for name, content in headers.items():
                 (inc / name).write_text(content, encoding='utf-8')
             for name in ('film_menu.h', 'film_native_view.h', 'ui_trial_trace.h',
-                         'film_preview_fmt.h', 'mtf2_native_touch.h'):
+                         'film_preview_fmt.h', 'mtf2_native_touch.h', 'film_album_index.h'):
                 (inc / name).write_text((ROOT / 'camera' / name).read_text(encoding='utf-8'), encoding='utf-8')
             src = (ROOT / 'camera/native_film_ui_trial3.c').read_text(encoding='utf-8')
             body = model_c.replace('#include "native_film_ui_trial3.c"', src).replace('__attribute__((pcs("aapcs")))', '')

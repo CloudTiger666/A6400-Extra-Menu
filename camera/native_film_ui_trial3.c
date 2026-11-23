@@ -111,12 +111,12 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_QUAL_12M           "画质: 12MP 超清"
 #define UI_S_QUAL_6M            "画质: 6MP 高清"
 #define UI_S_QUAL_1M7           "画质: 1.7MP 极速"
-#define UI_S_HDR_BUSY           "V4.1 SLEM | %s | 转档:%u 已转:%u"
-#define UI_S_HDR_IDLE           "V4.1 SLEM | %s | 已转:%u (%u/%u)"
-#define UI_S_HDR_INIT           "V4.1 SLEM (hany) | %s"
-#define UI_S_HDR_BOOT           "V4.1 SLEM (hany) | 关闭"
+#define UI_S_HDR_BUSY           "V4.2.1 SLEM | %s | 转档:%u 已转:%u"
+#define UI_S_HDR_IDLE           "V4.2.1 SLEM | %s | 已转:%u (%u/%u)"
+#define UI_S_HDR_INIT           "V4.2.1 SLEM (hany) | %s"
+#define UI_S_HDR_BOOT           "V4.2.1 SLEM (hany) | 关闭"
 #define UI_S_HDR_LUT            "LUT 设置 | %s"
-#define UI_S_HDR_V4             "细节设置 | V4.1 SLEM (hany)"
+#define UI_S_HDR_V4             "细节设置 | V4.2.1 SLEM (hany)"
 #define UI_S_HDR_STOCKS         "胶片风格 (%u/2)"
 #define UI_S_FOOT_HOME          "hany | 相册:%u张 | 队列 %u/%u"
 #define UI_S_ALBUM_TILE_FMT     "套色相册 (%u张) >"
@@ -126,6 +126,19 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_POPUP_FMT          "即时预览小窗: %s"
 #define UI_S_TOUCH_FMT          "原生MENU触控: %s"
 #define UI_S_TOUCH_UNSUP        "不支持"
+#define UI_S_DEXP_OFF           "双重曝光: 关闭"
+#define UI_S_DEXP_FMT           "双重曝光: %s (%s)"
+#define UI_S_DEXP_TILE_FMT      "双曝: %s (%s) >"
+#define UI_S_DEXP_HDR_FMT       "V4.2.1 SLEM | 双曝:%s (%s)"
+#define UI_S_DEXP_LOCK_LUT      "胶片滤镜: 关闭 (双曝未完锁定)"
+#define UI_S_DEXP_BLOCK_HDR     "双曝 1/2 未拍完，不可开启 LUT!"
+#define UI_S_DEXP_BLOCK_TOAST   "双曝未拍完，无法开启 LUT"
+#define UI_S_DEXP_M_SCREEN      "滤色"
+#define UI_S_DEXP_M_LIGHTEN     "变亮"
+#define UI_S_DEXP_M_AVERAGE     "平均"
+#define UI_S_DEXP_P_IDLE        "0/2"
+#define UI_S_DEXP_P_WAIT        "1/2待拍"
+#define UI_S_DEXP_P_BUSY        "2/2合成"
 #define UI_S_ALB_LUT_DEF        "已套滤镜"
 #define UI_S_ALB_DIR_TOP        "[套色相册 %u/%u] %s"
 #define UI_S_ALB_DIR_BOT        "< 上一张 | 点中间或按快门退出 | 下一张 >"
@@ -138,12 +151,12 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_QUAL_12M           "畫質: 12MP 超清"
 #define UI_S_QUAL_6M            "畫質: 6MP 高清"
 #define UI_S_QUAL_1M7           "畫質: 1.7MP 極速"
-#define UI_S_HDR_BUSY           "V4.1 SLEM | %s | 轉檔:%u 已轉:%u"
-#define UI_S_HDR_IDLE           "V4.1 SLEM | %s | 已轉:%u (%u/%u)"
-#define UI_S_HDR_INIT           "V4.1 SLEM (hany) | %s"
-#define UI_S_HDR_BOOT           "V4.1 SLEM (hany) | 關閉"
+#define UI_S_HDR_BUSY           "V4.2.1 SLEM | %s | 轉檔:%u 已轉:%u"
+#define UI_S_HDR_IDLE           "V4.2.1 SLEM | %s | 已轉:%u (%u/%u)"
+#define UI_S_HDR_INIT           "V4.2.1 SLEM (hany) | %s"
+#define UI_S_HDR_BOOT           "V4.2.1 SLEM (hany) | 關閉"
 #define UI_S_HDR_LUT            "LUT 設定 | %s"
-#define UI_S_HDR_V4             "細節設定 | V4.1 SLEM (hany)"
+#define UI_S_HDR_V4             "細節設定 | V4.2.1 SLEM (hany)"
 #define UI_S_HDR_STOCKS         "膠片風格 (%u/2)"
 #define UI_S_FOOT_HOME          "hany | 相冊:%u張 | 佇列 %u/%u"
 #define UI_S_ALBUM_TILE_FMT     "套色相冊 (%u張) >"
@@ -153,6 +166,19 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_POPUP_FMT          "即時預覽小窗: %s"
 #define UI_S_TOUCH_FMT          "原生MENU觸控: %s"
 #define UI_S_TOUCH_UNSUP        "不支援"
+#define UI_S_DEXP_OFF           "雙重曝光: 關閉"
+#define UI_S_DEXP_FMT           "雙重曝光: %s (%s)"
+#define UI_S_DEXP_TILE_FMT      "雙曝: %s (%s) >"
+#define UI_S_DEXP_HDR_FMT       "V4.2.1 SLEM | 雙曝:%s (%s)"
+#define UI_S_DEXP_LOCK_LUT      "膠片濾鏡: 關閉 (雙曝未完鎖定)"
+#define UI_S_DEXP_BLOCK_HDR     "雙曝 1/2 未拍完，不可開啟 LUT!"
+#define UI_S_DEXP_BLOCK_TOAST   "雙曝未拍完，無法開啟 LUT"
+#define UI_S_DEXP_M_SCREEN      "濾色"
+#define UI_S_DEXP_M_LIGHTEN     "變亮"
+#define UI_S_DEXP_M_AVERAGE     "平均"
+#define UI_S_DEXP_P_IDLE        "0/2"
+#define UI_S_DEXP_P_WAIT        "1/2待拍"
+#define UI_S_DEXP_P_BUSY        "2/2合成"
 #define UI_S_ALB_LUT_DEF        "已套濾鏡"
 #define UI_S_ALB_DIR_TOP        "[套色相冊 %u/%u] %s"
 #define UI_S_ALB_DIR_BOT        "< 上一張 | 點中間或按快門退出 | 下一張 >"
@@ -165,6 +191,17 @@ static const char *quality_label(uint32_t q) {
     if(q==2u)return UI_S_QUAL_12M;
     if(q==1u)return UI_S_QUAL_6M;
     return UI_S_QUAL_1M7;
+}
+static const char *dexp_mode_name(uint32_t m) {
+    if(m==A6400_DEXP_SCREEN)return UI_S_DEXP_M_SCREEN;
+    if(m==A6400_DEXP_LIGHTEN)return UI_S_DEXP_M_LIGHTEN;
+    if(m==A6400_DEXP_AVERAGE)return UI_S_DEXP_M_AVERAGE;
+    return UI_S_OFF;
+}
+static const char *dexp_phase_name(uint32_t p) {
+    if(p==1u)return UI_S_DEXP_P_WAIT;
+    if(p>=2u)return UI_S_DEXP_P_BUSY;
+    return UI_S_DEXP_P_IDLE;
 }
 #ifdef A6400_CHARO_SHUTTER
 typedef void (*beep_play_fn)(void *,int);
@@ -301,8 +338,9 @@ volatile struct a6400_ui_v4_v1 a6400_ui_v4_v1 = {
     0u, 0u,
     0u, 0u, 0u, 0u,
     {0}, {{0}},
-    0u, 0u, 0u, 0u, {0},
-    0u, 0u, 0u
+    0u, 0u, 0u,          /* dexp_mode=OFF, dexp_seq=0, dexp_pending=0 */
+    0u, 0u, 0u, 0u, {0}, /* album_truncated, ready seq/slot, scan_done, label */
+    0u, 0u, 0u           /* album_view_seq, album_view_slot, album_scan_req */
 };
 
 struct v4_native_slot {
@@ -348,7 +386,20 @@ static struct {
     int album_touch_down;
     short album_touch_x, album_touch_y;
     int mtf2_wait_release;
+    uint32_t mtf2_last_probe_ms;
+    uint32_t seen_dexp_pending;
+    uint32_t dexp_blocked_until_ms;
 } ui_v4;
+
+static void record(const char *event,int a,int b);
+
+static void v4_reprobe_mtf2(uint32_t now) {
+    if(a6400_ui_v4_v1.native_touch_ok)return;
+    ui_v4.mtf2_last_probe_ms=now;
+    a6400_ui_v4_v1.native_touch_ok=(uint32_t)mtf2_probe_and_init(&ui_v4.mtf2);
+    if(a6400_ui_v4_v1.native_touch_ok)
+        record("V4_MTF2_REPROBE_OK",(int)a6400_ui_v4_v1.native_touch_ok,0);
+}
 
 static struct {
     void *bg, *accent, *label;
@@ -1006,7 +1057,14 @@ static void draw(void *unused,const struct film_menu *menu) {
     if(a6400_ui_status_v1.magic==0x53544156u && a6400_ui_status_v1.seq>0u)
         ui_theme.status_seq=a6400_ui_status_v1.seq;
 
-    if(is_lut) {
+    uint32_t dm=a6400_ui_v4_v1.dexp_mode, dp=a6400_ui_v4_v1.dexp_pending;
+    uint32_t draw_now=now_ms();
+    int dexp_warn=(ui_v4.dexp_blocked_until_ms && (int32_t)(ui_v4.dexp_blocked_until_ms-draw_now)>0);
+    if(!dexp_warn)ui_v4.dexp_blocked_until_ms=0u;
+
+    if(dexp_warn) {
+        snprintf(ui.texts[0],sizeof(ui.texts[0]),"%s",UI_S_DEXP_BLOCK_HDR);
+    } else if(is_lut) {
         snprintf(ui.texts[0],sizeof(ui.texts[0]),UI_S_HDR_LUT,
                  film_stock_display_name(menu->settings.stock));
     } else if(is_v4) {
@@ -1014,6 +1072,9 @@ static void draw(void *unused,const struct film_menu *menu) {
     } else if(is_stocks) {
         snprintf(ui.texts[0],sizeof(ui.texts[0]),UI_S_HDR_STOCKS,
                  menu->page==FILM_MENU_STOCKS_P2?2u:1u);
+    } else if(dm!=0u || dp!=0u) {
+        snprintf(ui.texts[0],sizeof(ui.texts[0]),UI_S_DEXP_HDR_FMT,
+                 dexp_mode_name(dm?dm:A6400_DEXP_SCREEN),dexp_phase_name(dp));
     } else if(a6400_ui_status_v1.magic==0x53544156u && a6400_ui_status_v1.seq>0u) {
         if(a6400_ui_status_v1.active_jobs>0u) {
             snprintf(ui.texts[0],sizeof(ui.texts[0]),UI_S_HDR_BUSY,
@@ -1030,8 +1091,9 @@ static void draw(void *unused,const struct film_menu *menu) {
     }
     place(ui_theme.status_dot,0,56,46,10,10);
     paint(ui_theme.status_dot,
+          dexp_warn?h_orange_bright:
           (a6400_ui_status_v1.magic==0x53544156u && a6400_ui_status_v1.active_jobs>0u)?h_white:
-          (menu->settings.enabled?h_orange:h_muted));
+          ((dm!=0u || dp!=0u)?h_sky:(menu->settings.enabled?h_orange:h_muted)));
     place(ui.labels[0],1,76,34,508,34);
     write_lbl(ui.labels[0],ui.texts[0]);
 
@@ -1049,7 +1111,10 @@ static void draw(void *unused,const struct film_menu *menu) {
         }
         /* Live RAM text overrides */
         if(is_home) {
-            if(row==1u) {
+            if(row==0u && (dm!=0u || dp!=0u)) {
+                snprintf(ui.texts[row+1u],sizeof(ui.texts[0]),UI_S_DEXP_TILE_FMT,
+                         dexp_mode_name(dm?dm:A6400_DEXP_SCREEN),dexp_phase_name(dp));
+            } else if(row==1u) {
                 unsigned shown=film_album_browse_count(a6400_ui_v4_v1.album_count);
                 snprintf(ui.texts[row+1u],sizeof(ui.texts[0]),
                          a6400_ui_v4_v1.album_truncated?UI_S_ALBUM_TILE_MORE:UI_S_ALBUM_TILE_FMT,shown);
@@ -1062,12 +1127,19 @@ static void draw(void *unused,const struct film_menu *menu) {
             } else if(row==3u) {
                 snprintf(ui.texts[row+1u],sizeof(ui.texts[0]),"%s",quality_label(a6400_ui_hires_v1));
             }
+        } else if(is_lut && row==0u && dp!=0u && !menu->settings.enabled) {
+            snprintf(ui.texts[row+1u],sizeof(ui.texts[0]),"%s",UI_S_DEXP_LOCK_LUT);
         } else if(is_v4) {
             if(row==0u)snprintf(ui.texts[row+1u],sizeof(ui.texts[0]),UI_S_POPUP_FMT,
                                 a6400_ui_v4_v1.preview_popup_en?UI_S_ON:UI_S_OFF);
             else if(row==1u)snprintf(ui.texts[row+1u],sizeof(ui.texts[0]),UI_S_TOUCH_FMT,
                                      !a6400_ui_v4_v1.native_touch_ok?UI_S_TOUCH_UNSUP:
                                      (a6400_ui_v4_v1.native_touch_en?UI_S_ON:UI_S_OFF));
+            else if(row==3u) {
+                if(dm==0u && dp==0u)snprintf(ui.texts[row+1u],sizeof(ui.texts[0]),"%s",UI_S_DEXP_OFF);
+                else snprintf(ui.texts[row+1u],sizeof(ui.texts[0]),UI_S_DEXP_FMT,
+                              dexp_mode_name(dm?dm:A6400_DEXP_SCREEN),dexp_phase_name(dp));
+            }
         }
 
         /* Map visual slot to hit ID for press highlight */
@@ -1085,9 +1157,11 @@ static void draw(void *unused,const struct film_menu *menu) {
         const unsigned char *bg=is_footer_btn?h_pill:h_cell;
         if(is_pressed) bg=h_orange_bright;
         else if(is_home && row==0u && menu->settings.enabled) bg=h_orange;
+        else if(is_home && row==0u && (dm!=0u || dp!=0u)) bg=h_ember;
         else if(is_home && row==1u && a6400_ui_v4_v1.album_count>0u) bg=h_ember;
         else if(is_home && row==3u && a6400_ui_hires_v1==2u) bg=h_ember;
         else if(is_lut && row==0u && menu->settings.enabled) bg=h_orange;
+        else if(is_v4 && row==3u && (dm!=0u || dp!=0u)) bg=h_ember;
         else if(is_stocks && row<5u && ((menu->page==FILM_MENU_STOCKS_P2?5:0)+(int)row)==menu->settings.stock) bg=h_ember;
 
         record("ROW_PANEL_GEOMETRY",(int)row,used);
@@ -1105,7 +1179,7 @@ static void draw(void *unused,const struct film_menu *menu) {
             const unsigned char *pip=h_muted;
             clear_chips(row);
             if(row==0u) {
-                pip=menu->settings.enabled?h_white:h_muted;
+                pip=menu->settings.enabled?h_white:((dm!=0u || dp!=0u)?h_sky:h_muted);
                 place(ui_theme.row_accents[row],0,x+16,y+18,10,10);
                 paint(ui_theme.row_accents[row],pip);
             } else if(row==1u) {
@@ -1146,12 +1220,14 @@ static void draw(void *unused,const struct film_menu *menu) {
                 lx=x+84;ly=y+12;lw=w-102;lh=36;
             }
         } else if(is_v4) {
-            if(row<2u) {
+            if(row<2u || row==3u) {
                 int on=(row==0u)?(a6400_ui_v4_v1.preview_popup_en!=0u):
-                       (a6400_ui_v4_v1.native_touch_ok && a6400_ui_v4_v1.native_touch_en);
+                       (row==1u)?(a6400_ui_v4_v1.native_touch_ok && a6400_ui_v4_v1.native_touch_en):
+                       (dm!=0u || dp!=0u);
+                const unsigned char *ac=(row==0u)?h_orange:h_sky;
                 place(ui_theme.row_accents[row],0,x,y,4,h);
-                paint(ui_theme.row_accents[row],on?(row==1u?h_sky:h_orange):h_muted);
-                draw_swiss_toggle(row,x+18,y+18,on,row==1u?h_sky:h_orange);
+                paint(ui_theme.row_accents[row],on?ac:h_muted);
+                draw_swiss_toggle(row,x+18,y+18,on,ac);
                 lx=x+84;ly=y+12;lw=w-102;lh=36;
             } else {
                 place(ui_theme.row_accents[row],0,x,y,4,h);
@@ -1387,7 +1463,47 @@ static void animate(void *self) {
 #endif
     int v4_busy_before=(ui.view.menu.visible || ui_v4.album_mode || ui_v4.popup_active);
     unsigned change=film_native_view_step(&ui.view,now,menu,zoom,other,touch,x,y);
-    if(change&FILM_MENU_SETTINGS_CHANGED)record("FILM_TAP",x,y);
+    if(change&FILM_MENU_SETTINGS_CHANGED) {
+        if(ui.view.menu.settings.enabled) {
+            if(a6400_ui_v4_v1.dexp_pending!=0u) {
+                /* Mutual exclusion: cannot enable LUT while Double Exposure has an unfinished shot (1/2 or blending 2/2). */
+                ui.view.menu.settings.enabled=0;
+                ui.view.drawn_enabled=0;
+                settings(0,&ui.view.menu.settings);
+                ui_v4.dexp_blocked_until_ms=now+3500u;
+                a6400_ui_toast_v1.kind=3u;
+                a6400_ui_toast_v1.duration_ms=3500u;
+                snprintf((char *)a6400_ui_toast_v1.text,sizeof(a6400_ui_toast_v1.text),"%s",UI_S_DEXP_BLOCK_TOAST);
+                a6400_ui_toast_v1.seq+=1u;
+                draw(0,&ui.view.menu);
+                record("V4_DEXP_BLOCK_LUT",(int)a6400_ui_v4_v1.dexp_mode,(int)a6400_ui_v4_v1.dexp_pending);
+            } else if(a6400_ui_v4_v1.dexp_mode!=0u) {
+                /* Mutual exclusion: enabling LUT when Double Exposure is idle (0/2) auto-disables Double Exposure. */
+                a6400_ui_v4_v1.dexp_mode=0u;
+                a6400_ui_v4_v1.dexp_seq+=1u;
+                draw(0,&ui.view.menu);
+                record("V4_LUT_AUTO_OFF_DEXP",0,0);
+            }
+        }
+        record("FILM_TAP",x,y);
+    }
+    if(change&FILM_MENU_DEXP_TOGGLED) {
+        uint32_t next_mode=(a6400_ui_v4_v1.dexp_mode+1u)&3u;
+        a6400_ui_v4_v1.dexp_mode=next_mode;
+        a6400_ui_v4_v1.dexp_seq+=1u;
+        ui_v4.dexp_blocked_until_ms=0u;
+        if(next_mode!=0u && ui.view.menu.settings.enabled) {
+            /* Mutual exclusion: enabling Double Exposure automatically turns OFF LUT to reduce CPU load. */
+            ui.view.menu.settings.enabled=0;
+            ui.view.drawn_enabled=0;
+            settings(0,&ui.view.menu.settings);
+            record("V4_DEXP_AUTO_OFF_LUT",(int)next_mode,0);
+        } else if(next_mode==0u && a6400_ui_v4_v1.dexp_pending==1u) {
+            a6400_ui_v4_v1.dexp_pending=0u;
+        }
+        draw(0,&ui.view.menu);
+        record("V4_DEXP_TOGGLE",(int)next_mode,(int)a6400_ui_v4_v1.dexp_pending);
+    }
     if(change&FILM_MENU_HIRES_TOGGLED) {
         a6400_ui_hires_v1=(a6400_ui_hires_v1+1u)%3u;
         draw(0,&ui.view.menu);
@@ -1399,8 +1515,19 @@ static void animate(void *self) {
         draw(0,&ui.view.menu);
         record("V4_POPUP_TOGGLE",(int)a6400_ui_v4_v1.preview_popup_en,0);
     }
+    if(ui.view.menu.visible && ui.view.menu.page==FILM_MENU_V4 &&
+       !a6400_ui_v4_v1.native_touch_ok &&
+       (uint32_t)(now-ui_v4.mtf2_last_probe_ms)>=1000u) {
+        v4_reprobe_mtf2(now);
+        if(a6400_ui_v4_v1.native_touch_ok)draw(0,&ui.view.menu);
+    }
     if(change&FILM_MENU_TOUCH_TOGGLED) {
-        if(a6400_ui_v4_v1.native_touch_ok)a6400_ui_v4_v1.native_touch_en^=1u;
+        if(!a6400_ui_v4_v1.native_touch_ok) {
+            v4_reprobe_mtf2(now);
+            if(a6400_ui_v4_v1.native_touch_ok)a6400_ui_v4_v1.native_touch_en=1u;
+        } else {
+            a6400_ui_v4_v1.native_touch_en^=1u;
+        }
         draw(0,&ui.view.menu);
         record("V4_TOUCH_TOGGLE",(int)a6400_ui_v4_v1.native_touch_en,(int)a6400_ui_v4_v1.native_touch_ok);
     }
@@ -1511,6 +1638,10 @@ static void animate(void *self) {
     }
     int allow_mtf2=(a6400_ui_v4_v1.native_touch_en!=0u) &&
                    !v4_busy_before && !v4_busy_now && !ui_v4.mtf2_wait_release;
+    if(allow_mtf2 && !a6400_ui_v4_v1.native_touch_ok && touch==5 &&
+       (uint32_t)(now-ui_v4.mtf2_last_probe_ms)>=2000u) {
+        v4_reprobe_mtf2(now);
+    }
     if(mtf2_on_touch_poll(&ui_v4.mtf2,allow_mtf2,touch,x,y)!=MTF2_ACT_NONE) {
         a6400_ui_v4_v1.native_touch_hits=ui_v4.mtf2.hits;
         record("MTF2_ACT",(int)ui_v4.mtf2.last_action,(int)ui_v4.mtf2.hits);
@@ -1574,8 +1705,11 @@ static void animate(void *self) {
         }
     }
 #endif
-    if(ui.view.menu.visible && a6400_ui_status_v1.magic==0x53544156u &&
-       a6400_ui_status_v1.seq!=ui_theme.status_seq) {
+    if(ui.view.menu.visible && (
+       (a6400_ui_status_v1.magic==0x53544156u && a6400_ui_status_v1.seq!=ui_theme.status_seq) ||
+       a6400_ui_v4_v1.dexp_pending!=ui_v4.seen_dexp_pending ||
+       (ui_v4.dexp_blocked_until_ms && (int32_t)(now-ui_v4.dexp_blocked_until_ms)>=0))) {
+        ui_v4.seen_dexp_pending=a6400_ui_v4_v1.dexp_pending;
         draw(0,&ui.view.menu);
     }
     if(ui.ticks%300u==0)record("FILM_ALIVE",(int)ui.ticks,ui.view.menu.visible);

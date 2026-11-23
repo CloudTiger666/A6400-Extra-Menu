@@ -284,6 +284,44 @@ int main(int argc,char **argv) {
         int closed=sys_close(fd);
         return result?result:closed?2:0;
     }
+    if(argc>=6 && !strcmp(argv[1],"--dexp")) {
+        int bmode=!strcmp(argv[2],"screen")?(int)A6400_DEXP_SCREEN:
+                  !strcmp(argv[2],"lighten")?(int)A6400_DEXP_LIGHTEN:
+                  !strcmp(argv[2],"average")?(int)A6400_DEXP_AVERAGE:0;
+        const char *in1=argv[3],*in2=argv[4],*outp=argv[5],*pv=NULL;
+        int dhires=0,dargi=6,dbad=(bmode==0);
+        while(dargi<argc) {
+            if(!strcmp(argv[dargi],"--hires") && !dhires){dhires=1;++dargi;}
+            else if(!strcmp(argv[dargi],"--ultra12m") && !dhires){dhires=2;++dargi;}
+            else if(!strcmp(argv[dargi],"--preview") && !pv && dargi+1<argc){pv=argv[dargi+1];dargi+=2;}
+            else{dbad=1;break;}
+        }
+        if(dbad || !strcmp(in1,outp) || !strcmp(in2,outp) || !strcmp(in1,in2)) {
+            printf("usage: film_jpeg --dexp screen|lighten|average INPUT1 INPUT2 OUTPUT [--hires|--ultra12m] [--preview PATH]\n");
+            return 1;
+        }
+#ifndef A6400_FILM_HOST
+        if(!film_input2_path(in1) || !film_input_path(in2) || !film_output_path(outp) ||
+           (pv && !film_preview_path(pv))) {
+            printf("FILM_ERROR path_policy\n");return 1;
+        }
+#endif
+        int fd1=sys_open(in1,O_RDONLY|O_NOFOLLOW,0);
+        if(fd1<0){printf("FILM_ERROR input_open=%d\n",fd1);return 2;}
+        if(!jpeg_first_frame_valid(&fd1,source_read,source_seek,MAX_INPUT_BYTES,
+                                  metadata,sizeof(metadata),&metadata_size)) {
+            sys_close(fd1);printf("FILM_ERROR input_markers_or_size\n");return 3;
+        }
+        int fd2=sys_open(in2,O_RDONLY|O_NOFOLLOW,0);
+        if(fd2<0){sys_close(fd1);printf("FILM_ERROR input_open=%d\n",fd2);return 2;}
+        if(!jpeg_first_frame_valid(&fd2,source_read,source_seek,MAX_INPUT_BYTES,
+                                  metadata,sizeof(metadata),&metadata_size)) {
+            sys_close(fd2);sys_close(fd1);printf("FILM_ERROR input_markers_or_size\n");return 3;
+        }
+        int dres=render_author_dexp(fd1,fd2,outp,bmode,metadata,(unsigned)metadata_size,dhires,pv);
+        sys_close(fd2);sys_close(fd1);
+        return dres;
+    }
 #endif
     int preset=argc>=2?preset_index(argv[1]):-1,grain=2,halo=1,hires=0;
     const char *preview_path=NULL;

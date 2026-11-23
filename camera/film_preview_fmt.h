@@ -41,6 +41,11 @@
 #define A6400_DISP_POPUP        1u
 #define A6400_DISP_ALBUM        2u
 
+#define A6400_DEXP_OFF          0u
+#define A6400_DEXP_SCREEN       1u /* 濾色: 1 - (1-A)(1-B) */
+#define A6400_DEXP_LIGHTEN      2u /* 變亮: max(A, B) */
+#define A6400_DEXP_AVERAGE      3u /* 平均: (A + B) / 2 */
+
 struct a6400_preview_hdr {
     uint32_t magic;
     uint32_t width;
@@ -75,7 +80,12 @@ struct a6400_ui_v4_v1 {
     uint32_t album_head;       /* 0..15 index of most recent instant-preview slot */
     uint32_t session_shots;    /* total shots (APPLIED + OFF) since boot */
     int8_t   shot_slots[A6400_SESSION_SHOTS_CAP]; /* -1 if LUT OFF, else 0..15 */
-    char     slot_labels[A6400_ALBUM_SLOTS][48];  /* legacy ring captions; album labels come from album.idx */
+    char     slot_labels[A6400_ALBUM_SLOTS][48];  /* per-slot UTF-8 caption */
+    /* Double Exposure IPC stays where upstream appended it, so dexp offsets do not move. */
+    uint32_t dexp_mode;        /* UI-owned: A6400_DEXP_OFF/SCREEN/LIGHTEN/AVERAGE */
+    uint32_t dexp_seq;         /* UI-owned: bumped whenever dexp_mode changes */
+    uint32_t dexp_pending;     /* Daemon-owned: 0=idle (0/2), 1=Shot1 (1/2), 2=blending (2/2) */
+    /* TEST album index and the one-photo request. After dexp so those three fields stay put. */
     uint32_t album_truncated;  /* 1 if TEST has more graded JPEGs than the index cap */
     uint32_t album_ready_seq;  /* daemon: matches album_view_seq when current.bin is ready */
     uint32_t album_ready_slot; /* daemon: index within the sorted TEST list */

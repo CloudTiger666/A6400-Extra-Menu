@@ -24,6 +24,8 @@ APPROVED_IMAGES = {
         '13968f668b8a32f8ecc5bc03321155a858d4e3bd90be548b143265e07f8b58db',
     'docs/images/a6400-extra-menu-v39-sslf.jpg':
         '54af54b01c15b0eb6c208102abc001919b6d6a028477fa146b942599ca118428',
+    'docs/images/sponsor-wechat.jpg':
+        '0f069a8b81c054daab52bce48ac5fde15b90fd42828f5beba3540019c66bd008',
 }
 FORBIDDEN_SUFFIXES = {
     '.elf', '.so', '.dylib', '.o', '.a', '.bin', '.dump', '.req',

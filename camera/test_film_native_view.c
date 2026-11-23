@@ -84,6 +84,7 @@ int main(void) {
     assert(!strcmp(labels[0],"即時預覽小窗: 開啟"));
     assert(!strcmp(labels[1],"原生MENU觸控: 開啟"));
     assert(!strcmp(labels[2],"恢復膠片預設 (標準/開)"));
+    assert(!strcmp(labels[3],"雙重曝光: 關閉"));
     tap(&v,300,264);assert(v.menu.settings.grain==2 && v.menu.settings.halation==1 && persistence==7);
     tap(&v,140,418);assert(v.menu.page==FILM_MENU_DETAILS);
     tap(&v,510,418);assert(v.menu.page==FILM_MENU_HOME);

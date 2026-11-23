@@ -121,3 +121,9 @@ python3 tools/check_public_tree.py
 - 本專案新增部分：[PolyForm Noncommercial 1.0.0](LICENSE)（商業使用須另行取得授權）。
 - 沿用的 MIT / Public Domain 元件：見 [THIRD_PARTY.md](THIRD_PARTY.md)。
 - 特別感謝 **ASFC-CYJ** 提供 Sony A6100（ILCE-6100）與 Windows 10 實機測試並協助促成 `--safe-serial` 安全傳輸機制；特別感謝 **阿杰** 貢獻 [《A6400-V3.x 升級工作流程與經驗教訓》](docs/A6400-V3.x升級工作流程與經驗教訓.md) 並協助定位 Windows `oemXX.inf` 驅動包累積與上傳累計回顯問題；完整致謝見 [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md)。Sony、Kodak、Fujifilm、CineStill 等名稱僅用於描述相容性或模擬色彩選項，本專案並非上述公司之官方產品。
+
+## 贊助支持
+
+如果這個開源專案對你有幫助，歡迎掃碼贊助作者喝杯咖啡，支持後續功能開發與實機維護！
+
+<img src="docs/images/sponsor-wechat.jpg" alt="微信贊助二維碼" width="260">

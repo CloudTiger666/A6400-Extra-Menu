@@ -36,6 +36,17 @@ class UiV4V1(ctypes.Structure):
         ('session_shots', ctypes.c_uint32),
         ('shot_slots', ctypes.c_int8 * 64),
         ('slot_labels', (ctypes.c_char * 48) * 16),
+        ('dexp_mode', ctypes.c_uint32),
+        ('dexp_seq', ctypes.c_uint32),
+        ('dexp_pending', ctypes.c_uint32),
+        ('album_truncated', ctypes.c_uint32),
+        ('album_ready_seq', ctypes.c_uint32),
+        ('album_ready_slot', ctypes.c_uint32),
+        ('album_scan_done', ctypes.c_uint32),
+        ('album_label', ctypes.c_char * 48),
+        ('album_view_seq', ctypes.c_uint32),
+        ('album_view_slot', ctypes.c_uint32),
+        ('album_scan_req', ctypes.c_uint32),
     ]
 
 
@@ -296,7 +307,7 @@ int model_menu_visible(void) { return ui.view.menu.visible; }
             # Verify NO auto-hide when A6400_UI_DISPLAY_MS=0 even after 120s idle!
             lib.model_tick(120000, 6, 32767, 32767, 0, 0)
             self.assertEqual(lib.model_menu_visible(), 1)
-            self.assertIn('V4.1 SLEM', lib.model_text_at(0).decode('utf-8'))
+            self.assertIn('V4.2.1 SLEM', lib.model_text_at(0).decode('utf-8'))
             self.assertIn('hany', lib.model_text_at(7).decode('utf-8'))
             # Close menu via bottom-right Close pill (x=510, y=418)
             lib.model_tick(25, 5, 510, 418, 0, 0)
@@ -367,6 +378,52 @@ int model_menu_visible(void) { return ui.view.menu.visible; }
             lib.model_tick(25, 6, 32767, 32767, 0, 0)
             self.assertEqual(lib.model_album_mode(), 0)
             self.assertEqual(v4.display_mode, 0)
+
+            # 5b) Double Exposure & LUT strict mutual exclusion:
+            #     - Enabling Double Exposure automatically turns OFF LUT.
+            #     - Enabling LUT while dexp_pending != 0 (Shot 1/2 unfinished) is BLOCKED.
+            #     - Enabling LUT when dexp_pending == 0 auto-disables Double Exposure.
+            lib.model_open_home()
+            # Open LUT Settings (Top-Left tile @ x=180, y=150) and turn LUT ON (row 0 @ x=200, y=120)
+            lib.model_tick(25, 5, 180, 150, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            lib.model_tick(25, 5, 200, 120, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertIn('開啟', lib.model_text_at(1).decode('utf-8'))
+            self.assertEqual(v4.dexp_mode, 0)
+            # Open Details/V4 subpage (bottom-left @ x=140, y=418) -> row 3 is Double Exposure
+            lib.model_tick(25, 5, 140, 418, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertIn('雙重曝光: 關閉', lib.model_text_at(4).decode('utf-8'))
+            # Tap Double Exposure (row 3 @ x=200, y=336) -> turns ON Screen (1) and auto-disables LUT!
+            lib.model_tick(25, 5, 200, 336, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertEqual(v4.dexp_mode, 1)
+            self.assertIn('雙重曝光: 濾色 (0/2)', lib.model_text_at(4).decode('utf-8'))
+            # Return to LUT Settings (bottom-left @ x=140, y=418) -> LUT must be OFF!
+            lib.model_tick(25, 5, 140, 418, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertIn('關閉', lib.model_text_at(1).decode('utf-8'))
+            # Simulate Shot 1/2 captured (dexp_pending = 1) -> trying to turn LUT ON must be BLOCKED!
+            v4.dexp_pending = 1
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertIn('雙曝未完鎖定', lib.model_text_at(1).decode('utf-8'))
+            lib.model_tick(25, 5, 200, 120, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertIn('雙曝 1/2 未拍完，不可開啟 LUT!', lib.model_text_at(0).decode('utf-8'))
+            self.assertIn('關閉', lib.model_text_at(1).decode('utf-8'))
+            # Simulate Shot 2/2 finished (dexp_pending = 0) -> turning LUT ON now succeeds & auto-disables Double Exposure!
+            v4.dexp_pending = 0
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            lib.model_tick(25, 5, 200, 120, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertIn('開啟', lib.model_text_at(1).decode('utf-8'))
+            self.assertEqual(v4.dexp_mode, 0)
+            # Close menu
+            lib.model_tick(25, 5, 510, 418, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            lib.model_tick(25, 5, 510, 418, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
 
             # 6) Simplified Chinese (-DA6400_UI_LANG_SC=1) + 3-sound compile & strings check
             so_sc = d / 'v40_model_sc.so'
@@ -711,6 +768,30 @@ int n_album_native(void) { return ui_v4.album_is_native; }
             lib.n_exit_album()
             self.assertEqual(lib.n_layer_active(), 0)
             self.assertEqual((lib.n_img_w(), lib.n_img_h()), (0, 0))
+
+    def test_double_exposure_blend_modes_and_preview(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            worker = d / 'film_job_dexp'
+            subprocess.run([
+                'make', '-C', str(ROOT / 'camera'), '-f', 'Makefile.film',
+                'HOST=1', 'JOB=1', f'BUILD={d / "build"}', f'TARGET={worker}',
+            ], check=True, capture_output=True)
+            in1 = d / 'shot1.jpg'
+            in2 = d / 'shot2.jpg'
+            _make_synthetic_jpeg(in1, 320, 240)
+            _make_synthetic_jpeg(in2, 320, 240)
+            for idx, mode in enumerate(('screen', 'lighten', 'average'), start=1):
+                out_jpg = d / f'out_{mode}.jpg'
+                pv_bin = d / f'pv_{mode}.bin'
+                res = subprocess.run(
+                    [str(worker), '--dexp', mode, str(in1), str(in2), str(out_jpg), '--preview', str(pv_bin)],
+                    capture_output=True, text=True, check=True,
+                )
+                self.assertIn(f'FILM_DONE width=320 height=240', res.stdout)
+                self.assertIn(f'dexp={idx}', res.stdout)
+                self.assertTrue(out_jpg.is_file() and out_jpg.stat().st_size > 1000)
+                self.assertEqual(pv_bin.stat().st_size, 556928)
 
 
 if __name__ == '__main__':

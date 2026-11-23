@@ -58,6 +58,7 @@ unsigned film_native_view_step(struct film_native_view *v,unsigned now,
 #define FV_RESET_DET    "恢复胶片默认 (标准/开)"
 #define FV_V4_POPUP     "即时预览小窗: 开启"
 #define FV_V4_TOUCH     "原生MENU触控: 开启"
+#define FV_V4_DEXP      "双重曝光: 关闭"
 #define FV_GRAIN_DET    {"无 (加速)","轻微","标准","浓厚"}
 #define FV_GRAIN_STD    "标准"
 #else
@@ -83,6 +84,7 @@ unsigned film_native_view_step(struct film_native_view *v,unsigned now,
 #define FV_RESET_DET    "恢復膠片預設 (標準/開)"
 #define FV_V4_POPUP     "即時預覽小窗: 開啟"
 #define FV_V4_TOUCH     "原生MENU觸控: 開啟"
+#define FV_V4_DEXP      "雙重曝光: 關閉"
 #define FV_GRAIN_DET    {"無 (加速)","輕微","標準","濃厚"}
 #define FV_GRAIN_STD    "標準"
 #endif
@@ -126,13 +128,14 @@ int film_native_view_row(const struct film_menu *m,unsigned row,char *out,unsign
             n=snprintf(out,capacity,"%s",FV_MORE_DET);
         }
     } else if(m->page==FILM_MENU_V4) {
-        /* Advanced Details subpage (inside LUT): 0=Popup, 1=Touch, 2=Reset, 5=Home, 6=Back LUT */
-        if(row==3 || row==4){out[0]=0;return 0;}
-        if(row<3) {
+        /* Advanced Details subpage: 0=Popup, 1=Touch, 2=Reset, 3=Double Exposure, 5=Home, 6=Back LUT */
+        if(row==4){out[0]=0;return 0;}
+        if(row<4) {
             *x=56;*width=528;*y=90+(int)row*72;*height=60;
             if(row==0)n=snprintf(out,capacity,"%s",FV_V4_POPUP);
             else if(row==1)n=snprintf(out,capacity,"%s",FV_V4_TOUCH);
-            else n=snprintf(out,capacity,"%s",FV_RESET_DET);
+            else if(row==2)n=snprintf(out,capacity,"%s",FV_RESET_DET);
+            else n=snprintf(out,capacity,"%s",FV_V4_DEXP);
         } else if(row==5) {
             *x=444;*width=144;*y=398;*height=42;
             n=snprintf(out,capacity,"%s",FV_BACK);
