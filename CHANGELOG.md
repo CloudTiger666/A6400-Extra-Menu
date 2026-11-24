@@ -10,10 +10,11 @@
 - **開機包 `gzip` 壓縮瘦身 52.6%**：[`host-tests/build_film_native_boot_package.py`](host-tests/build_film_native_boot_package.py) 改以 `gzip`（level 9、`mtime=0`）壓縮 `/tmp/a6400-film-boot-v15.tar`（`245,760 B` → `116,517 B`，省下 `129,243 B`），[`host-tests/film-runtime-v2-templates/bootstrap-local.sh`](host-tests/film-runtime-v2-templates/bootstrap-local.sh) 改以 BusyBox `tar -xzf` 解壓並保留 `tar -xf` 備援。
 - **開機右上角「已就緒」微提示 ＋ 版號升級 `V4.3 SLEM`**：[`camera/native_film_ui_trial3.c`](camera/native_film_ui_trial3.c) 於開機首次掛載進入 UI 時在右上角閃出 1.2 秒綠色提示 `V4.3 SLEM 已就緒`（不影響 `a6400_ui_toast_v1.seq`）。
 - **MPR 掃描抗雜訊修復**：[`camera/native_capture_probe.c`](camera/native_capture_probe.c) 新增 `timing_trace_line()` 過濾穿插於 `MPR FileIf FFirst` 回應中的 `line=..., time=..., diff=...` 除錯追蹤行，消除 `invalid_name` 短暫重試。
-- **套色相冊改讀 TEST 目錄（PR #15）**：
+- **套色相冊改讀 TEST 目錄 ＋ 16 槽位 RAM 秒開快取與預抓加速（PR #15 + 效能極速優化）**：
   - 套色相冊張數改為 SD 卡 `/A6400/TEST/F` + 7 位數字 + `.JPG` 的檔名索引，最多 1024 筆；超過時首頁顯示 `1024張+`。取電池後重新列出，不再只留本次開機的 16 張記憶體預覽。
-  - 翻頁只解碼目前這一張，使用 `/tmp_bt/a6400-film-job` 臨時掛載 32 MiB 私有 tmpfs 解碼、完成或退出即卸載清除，並檢查 JPEG EOI（連續失敗 3 次顯示「讀取失敗」）。
-  - 修正 16:9 液晶 `640×480` 比例，改以 `448×400` 顯示 3:2 照片（左右留黑邊）並依 EXIF 方向自動轉正直拍。
+  - **16 張 LRU RAM 秒開快取（`/tmp_bt/a6400-pv/c_*.bin`）＋ 智慧背景預抓**：剛拍完轉檔（含雙重曝光）直接寫入 10 MiB tmpfs 快取，開機掃描後自動預熱最新 1 張，瀏覽時自動預抓前後相鄰 4 張，並不重啟 `mpr_monio`／不重複掃描 `TEST` 與 `DCIM`；12MP 大圖預覽改走 `1/8` DC 極速解碼（`~25 ms`），實現 **0 秒秒開與零延遲連翻**。
+  - 未命中快取之舊圖使用 `/tmp_bt/a6400-film-job` 臨時掛載 32 MiB 私有 tmpfs 解碼、完成或退出即卸載清除，並檢查 JPEG EOI（連續失敗 3 次顯示「讀取失敗」）。
+  - 修正 16:9 液晶 `640×480` 比例，改以 `448×400` 顯示 3:2 照片（左右留黑邊）並依 EXIF 方向自動轉正直拍；修正重進相冊 `album_view_seq` 單調遞增防序號碰撞。
   - 保留 `dexp_mode`、`dexp_seq`、`dexp_pending` 欄位偏移與雙重曝光狀態，互不衝突。
 
 ## [V4.2.1 DEXP (hany)] - 2026-11-23（雙重曝光 ＋ MTF2 自動重測）

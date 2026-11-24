@@ -373,10 +373,52 @@ static void author_pack_preview_box(const unsigned char *rgb,int img_w,int img_h
     unsigned off_x=pad+(avail_w-fit_w)/2u;
     unsigned off_y=pad+(avail_h-fit_h)/2u;
     int do_avg=(rot_w>=fit_w*2u && rot_h>=fit_h*2u);
+    int do_bilin=(!do_avg && rot_w>=256u && rot_h>=256u && img_w>=2 && img_h>=2);
     for (unsigned y=0;y<fit_h;++y) {
+        uint16_t *out_row=dst+(off_y+y)*box_w+off_x;
+        if (do_bilin) {
+            unsigned fy256=((y*(rot_h-1u))<<8)/(fit_h>1u?(fit_h-1u):1u);
+            unsigned ly0=fy256>>8, wy=fy256&255u, iwy=256u-wy;
+            if (ly0+1u>=rot_h) { ly0=rot_h-2u; wy=256u; iwy=0u; }
+            for (unsigned x=0;x<fit_w;++x) {
+                unsigned fx256=((x*(rot_w-1u))<<8)/(fit_w>1u?(fit_w-1u):1u);
+                unsigned lx0=fx256>>8, wx=fx256&255u, iwx=256u-wx;
+                if (lx0+1u>=rot_w) { lx0=rot_w-2u; wx=256u; iwx=0u; }
+                unsigned sx00,sy00,sx10,sy10,sx01,sy01,sx11,sy11;
+                if (orient==6u) {
+                    sx00=ly0; sy00=(unsigned)img_h-1u-lx0;
+                    sx10=ly0; sy10=(unsigned)img_h-1u-(lx0+1u);
+                    sx01=ly0+1u; sy01=sy00;
+                    sx11=ly0+1u; sy11=sy10;
+                } else if (orient==8u) {
+                    sx00=(unsigned)img_w-1u-ly0; sy00=lx0;
+                    sx10=sx00; sy10=lx0+1u;
+                    sx01=(unsigned)img_w-1u-(ly0+1u); sy01=lx0;
+                    sx11=sx01; sy11=lx0+1u;
+                } else if (orient==3u) {
+                    sx00=(unsigned)img_w-1u-lx0; sy00=(unsigned)img_h-1u-ly0;
+                    sx10=(unsigned)img_w-1u-(lx0+1u); sy10=sy00;
+                    sx01=sx00; sy01=(unsigned)img_h-1u-(ly0+1u);
+                    sx11=sx10; sy11=sy01;
+                } else {
+                    sx00=lx0; sy00=ly0;
+                    sx10=lx0+1u; sy10=ly0;
+                    sx01=lx0; sy01=ly0+1u;
+                    sx11=lx0+1u; sy11=ly0+1u;
+                }
+                const unsigned char *p00=rgb+((unsigned long)sy00*(unsigned)img_w+sx00)*3u;
+                const unsigned char *p10=rgb+((unsigned long)sy10*(unsigned)img_w+sx10)*3u;
+                const unsigned char *p01=rgb+((unsigned long)sy01*(unsigned)img_w+sx01)*3u;
+                const unsigned char *p11=rgb+((unsigned long)sy11*(unsigned)img_w+sx11)*3u;
+                unsigned r=((p00[0]*iwx+p10[0]*wx)*iwy+(p01[0]*iwx+p11[0]*wx)*wy+32768u)>>16;
+                unsigned g=((p00[1]*iwx+p10[1]*wx)*iwy+(p01[1]*iwx+p11[1]*wx)*wy+32768u)>>16;
+                unsigned b=((p00[2]*iwx+p10[2]*wx)*iwy+(p01[2]*iwx+p11[2]*wx)*wy+32768u)>>16;
+                out_row[x]=a6400_rgb_to_rgba4444_dither(r,g,b,x,y);
+            }
+            continue;
+        }
         unsigned ly=(y*rot_h)/fit_h;
         if (ly>=rot_h) ly=rot_h-1u;
-        uint16_t *out_row=dst+(off_y+y)*box_w+off_x;
         for (unsigned x=0;x<fit_w;++x) {
             unsigned lx=(x*rot_w)/fit_w;
             if (lx>=rot_w) lx=rot_w-1u;
@@ -440,11 +482,132 @@ static unsigned author_file_orientation(const unsigned char *data,unsigned size)
     return 1u;
 }
 
+#ifndef A6400_FILM_HOST
+static int author_pv_out_allowed(const char *p) {
+    if(!p) return 0;
+    if(!strcmp(p,A6400_PV_CURRENT)) return 1;
+    const char *pfx=A6400_PV_DIR "/c_";
+    unsigned n=0;
+    while(pfx[n]) { if(p[n]!=pfx[n]) return 0; ++n; }
+    if(!p[n]) return 0;
+    for(unsigned i=n;p[i];++i) {
+        char c=p[i];
+        if(c=='/' || (c=='.' && p[i+1]=='.')) return 0;
+        if(!((c>='0'&&c<='9')||(c>='A'&&c<='Z')||(c>='a'&&c<='z')||c=='.'||c=='_')) return 0;
+    }
+    return 1;
+}
+#endif
+
+static int author_decode_album_fast(int fd,unsigned length,author_image *image) {
+    if(!length || sys_lseek(fd,0,0)!=0) return 4;
+    author_input input; input.fd=fd; input.failed=0; input.left=length; input.pos=0; input.end=0;
+    pjpeg_image_info_t info={};
+    unsigned status=pjpeg_decode_init(&info,author_read,&input,0);
+    if(status || input.failed || info.m_width<1 || info.m_height<1 ||
+       (unsigned)info.m_width>MAX_IMAGE_DIMENSION ||
+       (unsigned)info.m_height>MAX_IMAGE_DIMENSION ||
+       (unsigned long)info.m_width*(unsigned long)info.m_height>MAX_PIXELS ||
+       info.m_MCUHeight<1 || info.m_MCUHeight>16 ||
+       (info.m_comps!=1 && info.m_comps!=3)) return 4;
+    /* 12MP/24MP graded JPEGs (>= 3600x2400): use 1/8 DC-only decode (zero IDCT,
+     * 4240x2826 -> 530x353 in ~25 ms vs ~900 ms). */
+    if(info.m_width>=3600 && info.m_height>=2400 &&
+       (info.m_MCUWidth>>3)>=1 && (info.m_MCUHeight>>3)>=1) {
+        if(sys_lseek(fd,0,0)!=0) return 4;
+        input.fd=fd; input.failed=0; input.left=length; input.pos=0; input.end=0;
+        memset(&info,0,sizeof(info));
+        if(pjpeg_decode_init(&info,author_read,&input,1) || input.failed) return 4;
+        int bx_per_mcu=info.m_MCUWidth>>3, by_per_mcu=info.m_MCUHeight>>3;
+        int width=(info.m_width+7)/8, height=(info.m_height+7)/8;
+        if(width<1 || height<1) return 4;
+        image->bytes=(unsigned)width*(unsigned)height*3u;
+        if(!author_memory_ready(image->bytes,0u,0u)) return 5;
+        image->pixels=(unsigned char *)xalloc(image->bytes);
+        if(!image->pixels) return 5;
+        for(int my=0;my<info.m_MCUSPerCol;++my) {
+            for(int mx=0;mx<info.m_MCUSPerRow;++mx) {
+                if(pjpeg_decode_mcu() || input.failed) { image->clear(); return 8; }
+                for(int by=0;by<by_per_mcu;++by) {
+                    int ry=my*by_per_mcu+by;
+                    if(ry>=height) continue;
+                    for(int bx=0;bx<bx_per_mcu;++bx) {
+                        int rx=mx*bx_per_mcu+bx;
+                        if(rx>=width) continue;
+                        unsigned idx=(unsigned)by*128u+(unsigned)bx*64u;
+                        unsigned char *out=image->pixels+((unsigned long)ry*(unsigned)width+(unsigned)rx)*3u;
+                        if(info.m_comps==1) {
+                            unsigned char v=info.m_pMCUBufR[idx];
+                            out[0]=v; out[1]=v; out[2]=v;
+                        } else {
+                            out[0]=info.m_pMCUBufR[idx];
+                            out[1]=info.m_pMCUBufG[idx];
+                            out[2]=info.m_pMCUBufB[idx];
+                        }
+                    }
+                }
+            }
+        }
+        if(pjpeg_decode_mcu()!=PJPG_NO_MORE_BLOCKS || input.failed) { image->clear(); return 8; }
+        image->width=width; image->height=height;
+        image->source_width=info.m_width; image->source_height=info.m_height;
+        image->reduced=1;
+        return 0;
+    }
+    /* 1.7MP/6MP graded JPEGs (>= 1200x800): use 1/2-scale IDCT (808x540 / 1500x1000). */
+    if(info.m_width>=1200 && info.m_height>=800 && info.m_MCUWidth>=2 && info.m_MCUHeight>=2) {
+        if(sys_lseek(fd,0,0)!=0) return 4;
+        input.fd=fd; input.failed=0; input.left=length; input.pos=0; input.end=0;
+        memset(&info,0,sizeof(info));
+        if(pjpeg_decode_init(&info,author_read,&input,2) || input.failed) return 4;
+        int width=info.m_width/2, height=info.m_height/2;
+        if(width<1 || height<1 || (unsigned long)width*(unsigned long)height>AUTHOR_RGB_BYTES/3u) return 5;
+        image->bytes=(unsigned)width*(unsigned)height*3u;
+        if(!author_memory_ready(image->bytes,0u,0u)) return 5;
+        image->pixels=(unsigned char *)xalloc(image->bytes);
+        if(!image->pixels) return 5;
+        int rmw=info.m_MCUWidth>>1, rmh=info.m_MCUHeight>>1;
+        for(int row=0;row<info.m_MCUSPerCol;++row) {
+            int dst_y=row*rmh;
+            int rows=height-dst_y<rmh?height-dst_y:rmh;
+            for(int mcu_x=0;mcu_x<info.m_MCUSPerRow;++mcu_x) {
+                if(pjpeg_decode_mcu() || input.failed) { image->clear(); return 8; }
+                int dst_x=mcu_x*rmw;
+                if(dst_x>=width || rows<=0) continue;
+                int cols=width-dst_x<rmw?width-dst_x:rmw;
+                for(int y=0;y<rows;++y) {
+                    unsigned char *out=image->pixels+((unsigned long)(dst_y+y)*(unsigned)width+(unsigned)dst_x)*3u;
+                    unsigned src_row=(unsigned)y*(unsigned)rmw;
+                    if(info.m_comps==1) {
+                        for(int x=0;x<cols;++x) {
+                            unsigned char v=info.m_pMCUBufR[src_row+(unsigned)x];
+                            out[x*3]=v; out[x*3+1]=v; out[x*3+2]=v;
+                        }
+                    } else {
+                        for(int x=0;x<cols;++x) {
+                            unsigned idx=src_row+(unsigned)x;
+                            out[x*3]=info.m_pMCUBufR[idx];
+                            out[x*3+1]=info.m_pMCUBufG[idx];
+                            out[x*3+2]=info.m_pMCUBufB[idx];
+                        }
+                    }
+                }
+            }
+        }
+        if(pjpeg_decode_mcu()!=PJPG_NO_MORE_BLOCKS || input.failed) { image->clear(); return 8; }
+        image->width=width; image->height=height;
+        image->source_width=info.m_width; image->source_height=info.m_height;
+        image->reduced=1;
+        return 0;
+    }
+    return author_decode(fd,0,length,1,image);
+}
+
 /* One 600x400 album preview. Does not rerun the film grade. */
 static int author_album_preview_path(const char *jpeg_path,const char *out_path,const char *label) {
 #ifndef A6400_FILM_HOST
     if(!jpeg_path || strcmp(jpeg_path,A6400_PV_JOB_INPUT) ||
-       !out_path || strcmp(out_path,A6400_PV_CURRENT)) return 2;
+       !author_pv_out_allowed(out_path)) return 2;
 #endif
     int fd=sys_open(jpeg_path,O_RDONLY|O_NOFOLLOW,0);
     if(fd<0) return 3;
@@ -468,7 +631,7 @@ static int author_album_preview_path(const char *jpeg_path,const char *out_path,
         xfree(orient_buf,8192u);
     }
     author_image image;
-    int decoded=author_decode(fd,0,(unsigned)size,1,&image);
+    int decoded=author_decode_album_fast(fd,(unsigned)size,&image);
     int closed=sys_close(fd);
     if(decoded || closed) {image.clear(); return decoded?decoded:3;}
     uint16_t *alb=(uint16_t *)xalloc(A6400_ALBUM_BYTES);

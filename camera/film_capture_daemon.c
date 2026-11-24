@@ -535,6 +535,80 @@ static int copy_fd_exact(int src_fd,const char *dst_tmp,const char *dst_final,si
     return 0;
 }
 
+static struct {
+    char names[A6400_ALBUM_SLOTS][A6400_ALBUM_NAME_BYTES];
+    unsigned count;
+} g_pv_lru;
+
+static int pv_cache_path(const char *name,char *out,size_t cap) {
+    if(!name || !film_album_name_ok(name))return -1;
+    int n=snprintf(out,cap,"%s/c_%s.bin",A6400_PV_DIR,name);
+    return (n>0 && (size_t)n<cap)?0:-1;
+}
+
+static int pv_lru_find(const char *name) {
+    for(unsigned i=0;i<g_pv_lru.count;++i)
+        if(!strcmp(g_pv_lru.names[i],name))return (int)i;
+    return -1;
+}
+
+static void pv_lru_evict_for(const char *name) {
+    if(!name || pv_lru_find(name)>=0)return;
+    while(g_pv_lru.count>=A6400_ALBUM_SLOTS) {
+        char old_path[160];
+        if(pv_cache_path(g_pv_lru.names[0],old_path,sizeof(old_path))==0)
+            unlink(old_path);
+        for(unsigned i=1u;i<g_pv_lru.count;++i)
+            memcpy(g_pv_lru.names[i-1u],g_pv_lru.names[i],A6400_ALBUM_NAME_BYTES);
+        --g_pv_lru.count;
+    }
+}
+
+static void pv_lru_touch(const char *name) {
+    if(!name || !film_album_name_ok(name))return;
+    int idx=pv_lru_find(name);
+    if(idx>=0) {
+        if((unsigned)idx+1u==g_pv_lru.count)return;
+        char saved[A6400_ALBUM_NAME_BYTES];
+        memcpy(saved,g_pv_lru.names[idx],A6400_ALBUM_NAME_BYTES);
+        for(unsigned i=(unsigned)idx+1u;i<g_pv_lru.count;++i)
+            memcpy(g_pv_lru.names[i-1u],g_pv_lru.names[i],A6400_ALBUM_NAME_BYTES);
+        memcpy(g_pv_lru.names[g_pv_lru.count-1u],saved,A6400_ALBUM_NAME_BYTES);
+        return;
+    }
+    pv_lru_evict_for(name);
+    snprintf(g_pv_lru.names[g_pv_lru.count],A6400_ALBUM_NAME_BYTES,"%s",name);
+    ++g_pv_lru.count;
+}
+
+static int pv_file_exact_size(const char *path,off_t want) {
+    int fd=open(path,O_RDONLY|O_NOFOLLOW);
+    if(fd<0)return 0;
+    off_t sz=lseek(fd,0,SEEK_END);
+    close(fd);
+    return sz==want;
+}
+
+static int pv_cache_has(const char *name) {
+    char cpath[160];
+    if(pv_cache_path(name,cpath,sizeof(cpath))!=0)return 0;
+    return pv_file_exact_size(cpath,(off_t)A6400_PV_ALBUM_FILE_BYTES);
+}
+
+static int pv_cache_activate(const char *name) {
+    char cpath[160];
+    if(pv_cache_path(name,cpath,sizeof(cpath))!=0)return -1;
+    if(!pv_file_exact_size(cpath,(off_t)A6400_PV_ALBUM_FILE_BYTES))return -1;
+    unlink(A6400_PV_CURRENT ".tmp");
+    if(link(cpath,A6400_PV_CURRENT ".tmp")!=0)return -1;
+    if(rename(A6400_PV_CURRENT ".tmp",A6400_PV_CURRENT)!=0) {
+        unlink(A6400_PV_CURRENT ".tmp");
+        return -1;
+    }
+    pv_lru_touch(name);
+    return 0;
+}
+
 static void push_v4_ring_to_ui(int bump_latest_seq) {
     uint32_t base=0;
     int fd=open_ui_region(FILM_DAEMON_V4_RVA,sizeof(struct a6400_ui_v4_v1),1,&base);
@@ -640,49 +714,6 @@ static void stop_preview_subsystem(void) {
     }
 }
 
-#define ALBUM_CACHE_SLOTS 14u
-static char album_cache_names[ALBUM_CACHE_SLOTS][16];
-static unsigned album_cache_next = 0u;
-
-static int album_cache_copy_file(const char *src_path,const char *tmp_path,const char *dst_path) {
-    int sfd=open(src_path,O_RDONLY|O_NOFOLLOW);
-    if(sfd<0)return -1;
-    int ok=(copy_fd_exact(sfd,tmp_path,dst_path,A6400_PV_ALBUM_FILE_BYTES)==0);
-    close(sfd);
-    return ok?0:-1;
-}
-static int album_cache_load(const char *name) {
-    if(!name || !name[0])return -1;
-    for(unsigned i=0u;i<ALBUM_CACHE_SLOTS;++i) {
-        if(strcmp(album_cache_names[i],name)==0) {
-            char cpath[64];
-            snprintf(cpath,sizeof(cpath),"%s/ac_%02u.bin",A6400_PV_DIR,i);
-            if(album_cache_copy_file(cpath,A6400_PV_CURRENT ".tmp",A6400_PV_CURRENT)==0)
-                return 0;
-            album_cache_names[i][0]=0;
-            return -1;
-        }
-    }
-    return -1;
-}
-static void album_cache_store_from(const char *name,const char *src_path) {
-    if(!name || !name[0] || !src_path)return;
-    unsigned idx=ALBUM_CACHE_SLOTS;
-    for(unsigned i=0u;i<ALBUM_CACHE_SLOTS;++i) {
-        if(strcmp(album_cache_names[i],name)==0){idx=i;break;}
-    }
-    if(idx==ALBUM_CACHE_SLOTS) {
-        idx=album_cache_next%ALBUM_CACHE_SLOTS;
-        album_cache_next=(album_cache_next+1u)%ALBUM_CACHE_SLOTS;
-    }
-    char ctmp[64],cdst[64];
-    snprintf(ctmp,sizeof(ctmp),"%s/ac_%02u.bin.tmp",A6400_PV_DIR,idx);
-    snprintf(cdst,sizeof(cdst),"%s/ac_%02u.bin",A6400_PV_DIR,idx);
-    if(album_cache_copy_file(src_path,ctmp,cdst)==0) {
-        snprintf(album_cache_names[idx],sizeof(album_cache_names[idx]),"%.15s",name);
-    }
-}
-
 static void publish_v4_shot(int applied,const char *settings,const char *target,int hires) {
     v4_ring_init();
     if(!applied) {
@@ -699,11 +730,18 @@ static void publish_v4_shot(int applied,const char *settings,const char *target,
         return;
     }
     unsigned slot=(v4_ring.album_count==0u)?0u:((v4_ring.album_head+1u)%A6400_ALBUM_SLOTS);
-    char slot_tmp[160],slot_dst[160];
-    snprintf(slot_tmp,sizeof(slot_tmp),"%s/slot_%02u.bin.tmp",A6400_PV_DIR,slot);
-    snprintf(slot_dst,sizeof(slot_dst),"%s/slot_%02u.bin",A6400_PV_DIR,slot);
-    int ok=(copy_fd_exact(sfd,A6400_PV_POPUP ".tmp",A6400_PV_POPUP,A6400_PV_POPUP_FILE_BYTES)==0 &&
-            copy_fd_exact(sfd,slot_tmp,slot_dst,A6400_PV_ALBUM_FILE_BYTES)==0);
+    const char *base=target?strrchr(target,'/'):NULL;
+    base=base?base+1:(target?target:"");
+    int ok=(copy_fd_exact(sfd,A6400_PV_POPUP ".tmp",A6400_PV_POPUP,A6400_PV_POPUP_FILE_BYTES)==0);
+    if(ok) {
+        char ctmp[176],cdst[160];
+        if(pv_cache_path(base,cdst,sizeof(cdst))==0) {
+            pv_lru_evict_for(base);
+            snprintf(ctmp,sizeof(ctmp),"%s.tmp",cdst);
+            if(copy_fd_exact(sfd,ctmp,cdst,A6400_PV_ALBUM_FILE_BYTES)==0)
+                pv_lru_touch(base);
+        }
+    }
     close(sfd);
     unlink(A6400_PV_STAGED);
     if(!ok) {
@@ -714,9 +752,6 @@ static void publish_v4_shot(int applied,const char *settings,const char *target,
     }
     char preset[24];
     toast_preset_name(settings?settings:"",preset,sizeof(preset));
-    const char *base=target?strrchr(target,'/'):NULL;
-    base=base?base+1:(target?target:"");
-    if(base[0])album_cache_store_from(base,slot_dst);
     const char *qstr=(hires==2)?"12MP":(hires==1?"6MP":"1.7MP");
     snprintf(v4_ring.slot_labels[slot],sizeof(v4_ring.slot_labels[slot]),
              "%.18s %s (%.14s)",preset,qstr,base);
@@ -1172,9 +1207,11 @@ static unsigned g_album_fail_count;
 
 static int read_album_request(uint32_t *mode,uint32_t *view_seq,uint32_t *view_slot,uint32_t *scan_req);
 static int album_request_matches(uint32_t seq,uint32_t slot) {
+    if(daemon_signal || stop_requested()!=0)return 0;
     uint32_t mode=0,view_seq=0,view_slot=0,scan_req=0;
     if(read_album_request(&mode,&view_seq,&view_slot,&scan_req)!=0)return 0;
     (void)mode;
+    if(seq==0u)return view_seq==0u && scan_req==g_album_scan_done;
     return view_seq!=0 && view_seq==seq && view_slot==slot;
 }
 /* -2: the UI left this photo. The child is stopped and its RAM is released. */
@@ -1268,23 +1305,35 @@ static void album_release_mount(void) {
 #endif
     if(rmdir(ALBUM_JOB_DIR))printf("FILM_ALBUM_RMDIR_FAIL errno=%d\n",errno);
 }
-static int decode_test_jpeg(const char *name,uint32_t seq,uint32_t slot) {
-    char source[40];
+static int decode_test_jpeg(const char *name,uint32_t seq,uint32_t slot,int touch_current) {
+    char source[40],ctmp[176],cdst[160];
     if(snprintf(source,sizeof(source),"A:/A6400/TEST/%s",name)!=26)return -1;
+    if(pv_cache_path(name,cdst,sizeof(cdst))!=0)return -1;
+    snprintf(ctmp,sizeof(ctmp),"%s.tmp",cdst);
     if(!album_request_matches(seq,slot))return -2;
-    if(album_cache_load(name)==0)return 0;
     if(album_input_mount())return -1;
+    pv_lru_evict_for(name);
+    unlink(ctmp);
     char *reader[]={(char *)"/tmp_bt/a6400-film-native-command.elf",(char *)"readback",source,0};
     int rc=run_exec_until_left(reader[0],reader,seq,slot);
     if(!rc) {
         char *worker[]={(char *)"/tmp_bt/a6400-film-job.elf",(char *)"--album-preview",
-            (char *)A6400_PV_JOB_INPUT,(char *)A6400_PV_CURRENT,(char *)name,0};
+            (char *)A6400_PV_JOB_INPUT,ctmp,(char *)name,0};
         rc=run_exec_until_left(worker[0],worker,seq,slot);
     }
     album_release_mount();
-    if(rc==0)album_cache_store_from(name,A6400_PV_CURRENT);
-    if(rc==-2)unlink(A6400_PV_CURRENT);
-    return rc;
+    if(rc) {
+        unlink(ctmp);
+        if(rc==-2 && touch_current)unlink(A6400_PV_CURRENT);
+        return rc;
+    }
+    if(rename(ctmp,cdst)!=0) {
+        unlink(ctmp);
+        return -1;
+    }
+    pv_lru_touch(name);
+    if(touch_current && pv_cache_activate(name)!=0)return -1;
+    return 0;
 }
 static void remember_graded_name(const char *target) {
     const char *base=target?strrchr(target,'/'):NULL;
@@ -1307,6 +1356,11 @@ static void service_test_album(struct transport *t,int idle) {
     int have_req=read_album_request(&mode,&view_seq,&view_slot,&scan_req)==0;
     (void)mode;
     if(!g_album_scanned || (have_req && scan_req!=g_album_scan_done)) {
+        int first_scan=!g_album_scanned;
+        if(t->pid<0 && transport_start(t)) {
+            transport_stop(t);
+            return;
+        }
         static struct film_album_index fresh;
         int rc=inventory_test_album(t,&fresh);
         if(!rc) {
@@ -1322,40 +1376,131 @@ static void service_test_album(struct transport *t,int idle) {
         g_album_scanned=1;
         g_album_scan_done=scan_req;
         publish_album_ready(g_album_served_seq,g_album_served_slot,g_album_scan_done,NULL);
+        /* Prewarm the single newest graded photo once after boot scan so even the
+         * very first album open is 0ms instant from tmpfs RAM cache. */
+        if(first_scan && !rc && g_album.count>0u) {
+            const char *newest=g_album.names[g_album.count-1u];
+            if(!pv_cache_has(newest) && album_request_matches(0u,0u)) {
+                transport_stop(t);
+                if(decode_test_jpeg(newest,0u,0u,0)==0)
+                    printf("FILM_ALBUM_BOOT_WARM name=%s\n",newest);
+            }
+        }
     }
-    if(!have_req || !view_seq || view_slot>=g_album.count)return;
-    if(view_seq==g_album_served_seq && view_slot==g_album_served_slot)return;
-    uint32_t now=now_ms();
-    if(view_seq==g_album_fail_seq && (uint32_t)(now-g_album_fail_ms)<1000u)return;
-    transport_stop(t);
-    int decoded=decode_test_jpeg(g_album.names[view_slot],view_seq,view_slot);
-    if(decoded==-2) {
-        printf("FILM_ALBUM_PREVIEW_CANCEL slot=%u\n",view_slot);
-        return;
-    }
-    if(decoded) {
-        g_album_fail_count=view_seq==g_album_fail_seq?g_album_fail_count+1u:1u;
-        g_album_fail_seq=view_seq;
-        g_album_fail_ms=now;
-        printf("FILM_ALBUM_PREVIEW_FAIL slot=%u tries=%u\n",view_slot,g_album_fail_count);
-        if(g_album_fail_count<3u)return;
-        unlink(A6400_PV_CURRENT);
-        g_album_served_seq=view_seq;
-        g_album_served_slot=view_slot;
-#ifdef A6400_UI_LANG_SC
-        publish_album_ready(view_seq,view_slot,g_album_scan_done,"读取失败");
-#else
-        publish_album_ready(view_seq,view_slot,g_album_scan_done,"讀取失敗");
+    uint32_t idle_since=now_ms();
+    uint64_t last_sd_irq=0;
+    int have_sd_irq=0;
+#if FILM_CAPTURE_PROC_TRIGGER
+    have_sd_irq=sd_io_sample(&last_sd_irq);
 #endif
-        printf("FILM_ALBUM_PREVIEW_GIVEUP slot=%u name=%s\n",view_slot,g_album.names[view_slot]);
-        return;
+    for(;;) {
+        if(daemon_signal || stop_requested()!=0)break;
+        have_req=(read_album_request(&mode,&view_seq,&view_slot,&scan_req)==0);
+        if(!have_req)break;
+        if(scan_req!=g_album_scan_done) {
+            if(t->pid<0 && transport_start(t)){transport_stop(t);break;}
+            static struct film_album_index fresh2;
+            int rc=inventory_test_album(t,&fresh2);
+            if(!rc) {
+                g_album=fresh2;
+                if(mkdir(A6400_PV_DIR,0700) && errno!=EEXIST)rc=-1;
+            }
+            if(!rc && !film_album_index_write(A6400_PV_ALBUM_INDEX,&g_album)) {
+                publish_album_catalog(&g_album);
+                printf("FILM_ALBUM_SCAN count=%u truncated=%d\n",g_album.count,g_album.truncated);
+            } else if(rc) {
+                printf("FILM_ALBUM_SCAN_FAIL rc=%d\n",rc);
+            }
+            g_album_scanned=1;
+            g_album_scan_done=scan_req;
+            publish_album_ready(g_album_served_seq,g_album_served_slot,g_album_scan_done,NULL);
+        }
+        if(!view_seq || view_slot>=g_album.count)break;
+        if(view_seq!=g_album_served_seq || view_slot!=g_album_served_slot) {
+            const char *want_name=g_album.names[view_slot];
+            if(pv_cache_activate(want_name)==0) {
+                g_album_served_seq=view_seq;
+                g_album_served_slot=view_slot;
+                g_album_fail_seq=0;
+                g_album_fail_count=0;
+                publish_album_ready(view_seq,view_slot,g_album_scan_done,want_name);
+                printf("FILM_ALBUM_CACHE_HIT slot=%u name=%s\n",view_slot,want_name);
+                idle_since=now_ms();
+                continue;
+            }
+            uint32_t now=now_ms();
+            if(view_seq==g_album_fail_seq && (uint32_t)(now-g_album_fail_ms)<1000u) {
+                if(!FILM_CAPTURE_PERSISTENT)break;
+                pause_ms(25);
+                continue;
+            }
+            transport_stop(t);
+            int decoded=decode_test_jpeg(want_name,view_seq,view_slot,1);
+            if(decoded==-2) {
+                printf("FILM_ALBUM_PREVIEW_CANCEL slot=%u\n",view_slot);
+                idle_since=now_ms();
+                continue;
+            }
+            if(decoded) {
+                g_album_fail_count=view_seq==g_album_fail_seq?g_album_fail_count+1u:1u;
+                g_album_fail_seq=view_seq;
+                g_album_fail_ms=now;
+                printf("FILM_ALBUM_PREVIEW_FAIL slot=%u tries=%u\n",view_slot,g_album_fail_count);
+                if(g_album_fail_count<3u)continue;
+                unlink(A6400_PV_CURRENT);
+                g_album_served_seq=view_seq;
+                g_album_served_slot=view_slot;
+#ifdef A6400_UI_LANG_SC
+                publish_album_ready(view_seq,view_slot,g_album_scan_done,"读取失败");
+#else
+                publish_album_ready(view_seq,view_slot,g_album_scan_done,"讀取失敗");
+#endif
+                printf("FILM_ALBUM_PREVIEW_GIVEUP slot=%u name=%s\n",view_slot,want_name);
+                idle_since=now_ms();
+                continue;
+            }
+            g_album_served_seq=view_seq;
+            g_album_served_slot=view_slot;
+            g_album_fail_seq=0;
+            g_album_fail_count=0;
+            publish_album_ready(view_seq,view_slot,g_album_scan_done,want_name);
+            printf("FILM_ALBUM_PREVIEW_OK slot=%u name=%s\n",view_slot,want_name);
+            idle_since=now_ms();
+#if FILM_CAPTURE_PROC_TRIGGER
+            have_sd_irq=sd_io_sample(&last_sd_irq);
+#endif
+            continue;
+        }
+        /* Prefetch nearby uncached slots (-1, +1, -2, -3) while user views current photo. */
+        int prefetched=0;
+        static const int pf_offs[4]={-1,1,-2,-3};
+        for(unsigned pi=0;pi<4u;++pi) {
+            int64_t cand=(int64_t)view_slot+(int64_t)pf_offs[pi];
+            if(cand<0 || (uint64_t)cand>=(uint64_t)g_album.count)continue;
+            const char *pf_name=g_album.names[(unsigned)cand];
+            if(pv_cache_has(pf_name))continue;
+            transport_stop(t);
+            int prc=decode_test_jpeg(pf_name,view_seq,view_slot,0);
+            if(prc==0)printf("FILM_ALBUM_PREFETCH_OK slot=%u name=%s\n",(unsigned)cand,pf_name);
+            prefetched=1;
+            idle_since=now_ms();
+#if FILM_CAPTURE_PROC_TRIGGER
+            have_sd_irq=sd_io_sample(&last_sd_irq);
+#endif
+            break;
+        }
+        if(prefetched)continue;
+        if(!FILM_CAPTURE_PERSISTENT || (uint32_t)(now_ms()-idle_since)>=15000u)break;
+#if FILM_CAPTURE_PROC_TRIGGER
+        if(have_sd_irq) {
+            uint64_t cur_irq=0;
+            if(sd_io_sample(&cur_irq) && cur_irq>=last_sd_irq && (cur_irq-last_sd_irq)>32u)break;
+        }
+#else
+        (void)have_sd_irq;(void)last_sd_irq;
+#endif
+        pause_ms(15);
     }
-    g_album_served_seq=view_seq;
-    g_album_served_slot=view_slot;
-    g_album_fail_seq=0;
-    g_album_fail_count=0;
-    publish_album_ready(view_seq,view_slot,g_album_scan_done,g_album.names[view_slot]);
-    printf("FILM_ALBUM_PREVIEW_OK slot=%u name=%s\n",view_slot,g_album.names[view_slot]);
 }
 #else
 static void remember_graded_name(const char *target) {(void)target;}
@@ -1462,6 +1607,10 @@ int main(int argc,char **argv) {
         if(!FILM_CAPTURE_PERSISTENT && (uint32_t)(now_ms()-start)>=FILM_CAPTURE_ACTIVE_MS) {
             result=0;reason="expired";break;
         }
+        if(album_flip_waiting()) {
+            service_test_album(&transport,1);
+            continue;
+        }
         if(transport.pid<0 && transport_start(&transport)) {
 #if FILM_CAPTURE_PERSISTENT
             transport_stop(&transport);
@@ -1470,10 +1619,6 @@ int main(int argc,char **argv) {
 #else
             reason="monitor_restart";break;
 #endif
-        }
-        if(album_flip_waiting()) {
-            service_test_album(&transport,1);
-            continue;
         }
         int use_hint=FILM_CAPTURE_LATEST_DIR_ONLY && any_waiting_candidate() && latest_dcim_dir[0];
         phase="scanning";int scan=inventory_dirs_with_hint(&transport,&current,FILM_CAPTURE_LATEST_DIR_ONLY,use_hint?latest_dcim_dir:NULL);
@@ -1624,6 +1769,7 @@ int main(int argc,char **argv) {
                         char dcap[48];
                         snprintf(dcap,sizeof(dcap),"preset=dexp_%s",dexp_arg_name(dmode));
                         publish_v4_shot(did_apply,dcap,q->target,eff_hires);
+                        if(did_apply)remember_graded_name(q->target);
                         const char *base=strrchr(q->target,'/');
                         base=base?base+1:q->target;
 #ifdef A6400_UI_LANG_SC

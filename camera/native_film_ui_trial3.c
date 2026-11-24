@@ -404,6 +404,7 @@ static struct {
     uint32_t mtf2_last_probe_ms;
     uint32_t seen_dexp_pending;
     uint32_t dexp_blocked_until_ms;
+    uint32_t next_album_seq;
 } ui_v4;
 
 static void record(const char *event,int a,int b);
@@ -960,9 +961,15 @@ static void v4_album_sync_view(void) {
     if(ui_v4.album_idx>=cnt)ui_v4.album_idx=cnt-1u;
     uint32_t slot=cnt-1u-ui_v4.album_idx;
     if(a6400_ui_v4_v1.album_view_seq==0u || a6400_ui_v4_v1.album_view_slot!=slot) {
+        if(ui_v4.next_album_seq<a6400_ui_v4_v1.album_view_seq)
+            ui_v4.next_album_seq=a6400_ui_v4_v1.album_view_seq;
+        if(ui_v4.next_album_seq<a6400_ui_v4_v1.album_ready_seq)
+            ui_v4.next_album_seq=a6400_ui_v4_v1.album_ready_seq;
+        ui_v4.next_album_seq+=1u;
+        if(ui_v4.next_album_seq==0u)ui_v4.next_album_seq=1u;
         a6400_ui_v4_v1.album_view_slot=slot;
         __sync_synchronize();
-        a6400_ui_v4_v1.album_view_seq+=1u;
+        a6400_ui_v4_v1.album_view_seq=ui_v4.next_album_seq;
     }
     int ready=a6400_ui_v4_v1.album_ready_seq==a6400_ui_v4_v1.album_view_seq &&
         a6400_ui_v4_v1.album_ready_slot==slot && a6400_ui_v4_v1.album_label[0];
@@ -1582,7 +1589,6 @@ static void animate(void *self) {
         record("V4_TOUCH_TOGGLE",(int)a6400_ui_v4_v1.native_touch_en,(int)a6400_ui_v4_v1.native_touch_ok);
     }
     if(change&FILM_MENU_ALBUM_BROWSE) {
-        a6400_ui_v4_v1.album_scan_req+=1u;
         if(a6400_ui_v4_v1.album_count>0u) {
             film_native_view_hide(&ui.view);
             v4_dismiss_popup();
@@ -1592,6 +1598,7 @@ static void animate(void *self) {
             v4_album_sync_view();
             record("V4_ALBUM_BROWSE_OPEN",(int)a6400_ui_v4_v1.album_count,ui_v4.album_is_native);
         } else {
+            a6400_ui_v4_v1.album_scan_req+=1u;
             draw(0,&ui.view.menu);
         }
     }

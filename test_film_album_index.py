@@ -133,6 +133,21 @@ class AlbumPreviewTests(unittest.TestCase):
             self.assertLess(bottom[0], 40, bottom)
             self.assertLess(bottom[2], 80, bottom)
 
+            # Fast 1/8 DC-only path (>= 3600x2400 12MP) + EXIF orient=6 portrait
+            big12m = d / 'big12m.jpg'
+            subprocess.run([str(gen_bin), '4240', '2826', '0', str(big12m)], check=True)
+            big12m.write_bytes(_exif_orientation(big12m.read_bytes(), 6))
+            res = subprocess.run([str(job), '--album-preview', str(big12m), str(preview), 'F0000004.JPG'],
+                                 capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            packed12 = preview.read_bytes()
+            self.assertEqual(len(packed12), 480064)
+            red12 = _rgba4444(packed12, 300, 20)
+            self.assertGreater(red12[0], 200, red12)
+            self.assertLess(red12[1], 40, red12)
+            margin12 = _rgba4444(packed12, 8, 200)
+            self.assertLess(max(margin12), 50, margin12)
+
             cut = d / 'cut.jpg'
             cut.write_bytes(split.read_bytes()[:-400])
             preview.unlink()
@@ -159,9 +174,15 @@ class AlbumPreviewTests(unittest.TestCase):
         self.assertIn('FILM_ALBUM_PREVIEW_CANCEL', text)
         waiting = text.split('static int album_flip_waiting', 1)[1].split('static void service_test_album', 1)[0]
         self.assertIn('view_seq!=0', waiting)
+        watch = text.split('while(1) {', 1)[1]
+        self.assertLess(watch.find('album_flip_waiting()'), watch.find('transport_start(&transport)'))
+        self.assertIn('FILM_ALBUM_CACHE_HIT', text)
+        self.assertIn('FILM_ALBUM_PREFETCH_OK', text)
         ui = (ROOT / 'camera/native_film_ui_trial3.c').read_text(encoding='utf-8')
         leave = ui.split('static void v4_exit_album', 1)[1].split('static void visibility', 1)[0]
         self.assertIn('album_view_seq=0', leave)
+        browse = ui.split('if(change&FILM_MENU_ALBUM_BROWSE)', 1)[1].split('V4.1 Instant filter preview', 1)[0]
+        self.assertLess(browse.find('if(a6400_ui_v4_v1.album_count>0u)'), browse.find('album_scan_req+=1u'))
 
 
 if __name__ == '__main__':
