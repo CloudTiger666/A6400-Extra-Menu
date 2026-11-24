@@ -54,13 +54,14 @@ if [ -f "$ROOT/assets/a6400-charo-shutter.pcm" ]; then
     fi
 fi
 
-echo "[2/9] Building persistent V4.2.1 SLEM (hany) UI (charo=$CHARO_ENABLE multi=$CHARO_MULTI sc=${A6400_UI_LANG_SC:-0})..."
+echo "[2/9] Building persistent V4.3 SLEM (hany) UI (charo=$CHARO_ENABLE multi=$CHARO_MULTI sc=${A6400_UI_LANG_SC:-0} mtf2=${A6400_MTF2_ENABLE:-1})..."
 rm -rf "$OUT/ui"
 A6400_TRIAL_MS=0 \
 A6400_DISPLAY_MS=0 \
 A6400_CHARO_SHUTTER="$CHARO_ENABLE" \
 A6400_CHARO_MULTI="$CHARO_MULTI" \
 A6400_UI_LANG_SC="${A6400_UI_LANG_SC:-0}" \
+A6400_MTF2_ENABLE="${A6400_MTF2_ENABLE:-1}" \
 UI_MODULE_PATH=/tmp_bt/a6400-film-ui-v3-persist.so \
     sh "$ROOT/host-tests/build_ui_trial3.sh" "$OUT/ui" "$LIBS"
 

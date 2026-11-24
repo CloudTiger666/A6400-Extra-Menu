@@ -16,7 +16,9 @@
 #include <time.h>
 #include <unistd.h>
 #include "ui_trial_trace.h"
+#ifndef A6400_DISABLE_MTF2
 #include "mtf2_native_touch.h"
+#endif
 #ifdef A6400_INPUT_DIAGNOSTIC
 #include "ui_input_journal.h"
 static volatile struct ui_input_journal a6400_ui_input_journal_v1;
@@ -126,7 +128,11 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_ALB_DIR_WAIT       "[套色相册 %u/%u]"
 #define UI_S_POPUP_FMT          "即时预览小窗: %s"
 #define UI_S_TOUCH_FMT          "原生MENU触控: %s"
+#ifdef A6400_DISABLE_MTF2
+#define UI_S_TOUCH_UNSUP        "未启用 (稳定版)"
+#else
 #define UI_S_TOUCH_UNSUP        "不支持"
+#endif
 #define UI_S_DEXP_OFF           "双重曝光: 关闭"
 #define UI_S_DEXP_FMT           "双重曝光: %s (%s)"
 #define UI_S_DEXP_TILE_FMT      "双曝: %s (%s) >"
@@ -167,7 +173,11 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_ALB_DIR_WAIT       "[套色相冊 %u/%u]"
 #define UI_S_POPUP_FMT          "即時預覽小窗: %s"
 #define UI_S_TOUCH_FMT          "原生MENU觸控: %s"
+#ifdef A6400_DISABLE_MTF2
+#define UI_S_TOUCH_UNSUP        "未啟用 (穩定番)"
+#else
 #define UI_S_TOUCH_UNSUP        "不支援"
+#endif
 #define UI_S_DEXP_OFF           "雙重曝光: 關閉"
 #define UI_S_DEXP_FMT           "雙重曝光: %s (%s)"
 #define UI_S_DEXP_TILE_FMT      "雙曝: %s (%s) >"
@@ -353,7 +363,9 @@ struct v4_native_slot {
 };
 
 static struct {
+#ifndef A6400_DISABLE_MTF2
     struct mtf2_ctx mtf2;
+#endif
     /* Native Sony GEN_CacheInsImg + RGBA4444 (fmt=7) zero-flicker canvas APIs. */
     ctor_fn cache_img_ctor, sprite_invalidate;
     cimg_size_fn cache_img_set_size;
@@ -397,11 +409,15 @@ static struct {
 static void record(const char *event,int a,int b);
 
 static void v4_reprobe_mtf2(uint32_t now) {
+#ifdef A6400_DISABLE_MTF2
+    (void)now;
+#else
     if(a6400_ui_v4_v1.native_touch_ok)return;
     ui_v4.mtf2_last_probe_ms=now;
     a6400_ui_v4_v1.native_touch_ok=(uint32_t)mtf2_probe_and_init(&ui_v4.mtf2);
     if(a6400_ui_v4_v1.native_touch_ok)
         record("V4_MTF2_REPROBE_OK",(int)a6400_ui_v4_v1.native_touch_ok,0);
+#endif
 }
 
 static struct {
@@ -1670,6 +1686,7 @@ static void animate(void *self) {
     } else if(ui_v4.mtf2_wait_release && touch==6) {
         ui_v4.mtf2_wait_release=0;
     }
+#ifndef A6400_DISABLE_MTF2
     int allow_mtf2=(a6400_ui_v4_v1.native_touch_en!=0u) &&
                    !v4_busy_before && !v4_busy_now && !ui_v4.mtf2_wait_release;
     if(allow_mtf2 && !a6400_ui_v4_v1.native_touch_ok && touch==5 &&
@@ -1680,6 +1697,9 @@ static void animate(void *self) {
         a6400_ui_v4_v1.native_touch_hits=ui_v4.mtf2.hits;
         record("MTF2_ACT",(int)ui_v4.mtf2.last_action,(int)ui_v4.mtf2.hits);
     }
+#else
+    (void)v4_busy_before; (void)v4_busy_now;
+#endif
 #ifdef A6400_CHARO_SHUTTER
     if(change&FILM_MENU_SOUND_TOGGLED) {
 #if defined(A6400_CHARO_MULTI) && A6400_CHARO_MULTI
@@ -1862,7 +1882,12 @@ int a6400_ui_attach_v1(void *system,unsigned tid) {
 #endif
     strcpy(ui.texts[0],UI_S_HDR_BOOT);
     for(unsigned i=0;i<A6400_SESSION_SHOTS_CAP;i++)a6400_ui_v4_v1.shot_slots[i]=-1;
+#ifdef A6400_DISABLE_MTF2
+    a6400_ui_v4_v1.native_touch_ok=0u;
+    a6400_ui_v4_v1.native_touch_en=0u;
+#else
     a6400_ui_v4_v1.native_touch_ok=(uint32_t)mtf2_probe_and_init(&ui_v4.mtf2);
+#endif
     a6400_ui_v4_v1.album_scan_req+=1u;
     record("V4_MTF2_INIT",(int)a6400_ui_v4_v1.native_touch_ok,(int)(ui_v4.cache_img_ctor!=0));
 #ifdef A6400_UI_SETTINGS_DIAGNOSTIC

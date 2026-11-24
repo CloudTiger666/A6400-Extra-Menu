@@ -77,6 +77,11 @@ case "${A6400_UI_LANG_SC:-0}" in
  1) DIAGNOSTIC_FLAGS="$DIAGNOSTIC_FLAGS -DA6400_UI_LANG_SC=1" ;;
  *) echo "A6400_UI_LANG_SC must be 0 or 1" >&2; exit 2 ;;
 esac
+case "${A6400_MTF2_ENABLE:-1}" in
+ 1) ;;
+ 0) DIAGNOSTIC_FLAGS="$DIAGNOSTIC_FLAGS -DA6400_DISABLE_MTF2=1" ;;
+ *) echo "A6400_MTF2_ENABLE must be 0 or 1" >&2; exit 2 ;;
+esac
 mkdir -p "$OUT"
 CC=arm-linux-gnueabihf-gcc
 COMMON="-march=armv7-a+fp -mfpu=vfpv3-d16 -mfloat-abi=hard -Os -Wall -Wextra -Werror -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0"
