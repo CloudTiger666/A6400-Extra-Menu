@@ -1224,18 +1224,24 @@ static int album_request_matches(uint32_t seq,uint32_t slot) {
 static int run_exec_until_left(const char *file,char *const argv[],uint32_t seq,uint32_t slot) {
     pid_t pid=fork();
     if(pid<0)return -1;
-    if(pid==0){execv(file,argv);_exit(127);}
+    if(pid==0){(void)setpgid(0,0);execv(file,argv);_exit(127);}
     int status=0;
     for(;;) {
         pid_t got=waitpid(pid,&status,WNOHANG);
         if(got==pid)return status==0?0:-1;
         if(got<0 && errno!=EINTR) {
+            kill(-pid,SIGKILL);
             kill(pid,SIGKILL);
             while(waitpid(pid,&status,0)<0 && errno==EINTR){}
             return -1;
         }
         pause_ms(20);
-        if(!album_request_matches(seq,slot)){reap_readonly(pid);return -2;}
+        if(!album_request_matches(seq,slot)){
+            kill(-pid,SIGTERM);
+            reap_readonly(pid);
+            kill(-pid,SIGKILL);
+            return -2;
+        }
     }
 }
 static int inventory_test_album(struct transport *t,struct film_album_index *out) {
@@ -1306,11 +1312,36 @@ static int album_input_mount(void) {
     return -1;
 }
 static void album_release_mount(void) {
-    unlink(A6400_PV_JOB_INPUT);
+    for(int tries=0;tries<10;++tries) {
+        unlink(A6400_PV_JOB_INPUT);
 #ifdef __linux__
-    if(umount(ALBUM_JOB_DIR))printf("FILM_ALBUM_UMOUNT_FAIL errno=%d\n",errno);
+        if(umount(ALBUM_JOB_DIR)==0 || errno==EINVAL || errno==ENOENT)break;
+        if(tries==9) {
+            if(syscall(SYS_umount2,ALBUM_JOB_DIR,2)==0)break;
+            printf("FILM_ALBUM_UMOUNT_FAIL errno=%d\n",errno);
+        }
+#else
+        break;
 #endif
-    if(rmdir(ALBUM_JOB_DIR))printf("FILM_ALBUM_RMDIR_FAIL errno=%d\n",errno);
+        pause_ms(50);
+    }
+    for(int tries=0;tries<5;++tries) {
+        if(rmdir(ALBUM_JOB_DIR)==0 || errno==ENOENT)return;
+        pause_ms(20);
+    }
+    printf("FILM_ALBUM_RMDIR_FAIL errno=%d\n",errno);
+}
+static void album_cleanup_stale_mount(void) {
+#ifdef __linux__
+    FILE *mf=fopen("/proc/mounts","r");
+    if(!mf)return;
+    char line[256];int stale=0;
+    while(fgets(line,sizeof(line),mf)) {
+        if(strstr(line,"a6400-album " ALBUM_JOB_DIR " ")){stale=1;break;}
+    }
+    fclose(mf);
+    if(stale)album_release_mount();
+#endif
 }
 static int decode_test_jpeg(const char *name,uint32_t seq,uint32_t slot,int touch_current) {
     char source[40],ctmp[176],cdst[160];
@@ -1510,6 +1541,7 @@ static void service_test_album(struct transport *t,int idle) {
     }
 }
 #else
+static void album_cleanup_stale_mount(void) {}
 static void remember_graded_name(const char *target) {(void)target;}
 static int album_flip_waiting(void) {return 0;}
 static void service_test_album(struct transport *t,int idle) {(void)t;(void)idle;}
@@ -1771,6 +1803,7 @@ int main(int argc,char **argv) {
                         push_ui_toast(1u,eff_hires?45000u:18000u,tmsg);
                         early_toast_sent=0;
                         unsigned prev_applied=applied_jobs;
+                        album_cleanup_stale_mount();
                         int jrc=run_dexp_job(dexp_first_path,dexp_first_bytes,q,dmode,eff_hires);
                         dexp_first_valid=0;dexp_first_path[0]=0;dexp_first_bytes=0u;
                         push_v4_dexp_pending(0u);
@@ -1836,6 +1869,7 @@ int main(int argc,char **argv) {
                 push_ui_status(active?active:1u);
                 early_toast_sent=0;
                 unsigned prev_applied=applied_jobs;
+                album_cleanup_stale_mount();
                 if(run_job(q,settings,hires)) {
 #ifdef A6400_UI_LANG_SC
                     push_ui_toast(3u,3000u,"处理失败 (未确认)");
