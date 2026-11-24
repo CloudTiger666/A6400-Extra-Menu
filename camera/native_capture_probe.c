@@ -56,7 +56,7 @@
 #define PREAMBLE_BYTES 131072u
 #define FRAME_LINE_BYTES 256u
 struct entry { char path[80],time[32]; unsigned size; };
-struct item { char name[40],time[32]; unsigned size; int directory; };
+struct item { char name[64],time[32]; unsigned size; int directory; };
 struct catalogue { unsigned count; struct entry items[MAX_FILES]; };
 struct seen { struct entry value; uint32_t stable; int reported,present; };
 struct transport {
@@ -387,6 +387,15 @@ static int component(const char *s) {
              (s[i]>='0'&&s[i]<='9')||s[i]=='_'||s[i]=='-'||s[i]=='.'))return 0;
     return 1;
 }
+static int sound_component(const char *s) {
+    size_t n=strlen(s);if(!n || n>44u || s[0]=='.')return 0;
+    for(size_t i=0;i<n;++i) {
+        unsigned char c=(unsigned char)s[i];
+        if(!((c>='A'&&c<='Z')||(c>='a'&&c<='z')||(c>='0'&&c<='9')||
+             c=='_'||c=='-'||c=='.'||c=='~'||c>=0x80u))return 0;
+    }
+    return 1;
+}
 static int number(const char *s,unsigned *out) {
     unsigned v=0,n=0;
     while(*s==' ')++s;
@@ -484,14 +493,16 @@ static int native_item(struct transport *t,const char *directory,int first,struc
             /* Captured on the first cold-media root FFirst. Only this exact
              * version record, once after the header and before any outcome,
              * may precede a complete successful directory entry. */
-            if(!first || (strcmp(directory,"ms:/DCIM") && strcmp(directory,"ms:/A6400/TEST")) ||
+            if(!first || (strcmp(directory,"ms:/DCIM") && strcmp(directory,"ms:/A6400/TEST") &&
+               strcmp(directory,"ms:/A6400/SOUNDS")) ||
                headers!=1u || outcome_started || wd_version++ || !wd_version_line(value,bytes))invalid_version=1;
         }
         else if(bytes>=7u && !memcmp(value,"[CACHE]",7u)) {
             /* Captured during a USB mode transition, ahead of a complete
              * successful FNext entry. Accept only this exact ordered group;
              * an isolated cache error must never become a valid entry. */
-            if(first || (strncmp(directory,"ms:/DCIM/",9u) && strcmp(directory,"ms:/A6400/TEST")) ||
+            if(first || (strncmp(directory,"ms:/DCIM/",9u) && strcmp(directory,"ms:/A6400/TEST") &&
+               strcmp(directory,"ms:/A6400/SOUNDS")) ||
                headers!=1u || outcome_started || getstill)invalid_cache=1;
             if(!cache_notice && line_equals(value,bytes,
                 "[CACHE]BUFFER SIZE TOO SMALL : 00000000"))cache_notice=1u;
@@ -505,7 +516,8 @@ static int native_item(struct transport *t,const char *directory,int first,struc
              * Never discard arbitrary callbacks, mixed outcomes or suffixes. */
             if(cache_notice==2u && line_equals(value,bytes,"[MprIf] Callback EnterStillPb"))
                 cache_notice=3u;
-            else if(first || (strncmp(directory,"ms:/DCIM/",9u) && strcmp(directory,"ms:/A6400/TEST")) ||
+            else if(first || (strncmp(directory,"ms:/DCIM/",9u) && strcmp(directory,"ms:/A6400/TEST") &&
+               strcmp(directory,"ms:/A6400/SOUNDS")) ||
                headers!=1u || outcome_started || cache_notice || getstill++ ||
                !line_equals(value,bytes,"[MprIf] Callback GetStillAttrInfo"))invalid_callback=1;
         }
@@ -569,8 +581,9 @@ static int native_item(struct transport *t,const char *directory,int first,struc
         if(!strcmp(line,"FindFirst Retry."))continue; /* Already position/verb/count validated. */
         if(header && benign_async_debug(line,strlen(line)))continue;
         if(!item->name[0]) {
-            if(!component(line))return diagnostic(t,"invalid_name",0);
-            strcpy(item->name,line);continue;
+            int ok_name=!strcmp(directory,"ms:/A6400/SOUNDS")?sound_component(line):component(line);
+            if(!ok_name)return diagnostic(t,"invalid_name",0);
+            snprintf(item->name,sizeof(item->name),"%s",line);continue;
         }
         if(!strncmp(line,"kind",4)) {
             char *colon=strchr(line,':');if(!colon || kind++)return diagnostic(t,"invalid_kind",0);

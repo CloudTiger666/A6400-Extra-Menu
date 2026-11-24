@@ -1557,7 +1557,7 @@ int main(int argc,char **argv) {
         for(int attempt=0;attempt<30;++attempt) {
             if(!transport_start(&t)) {
                 t.scan_started=now_ms();
-                char names[12][48];
+                char names[12][64];
                 int n_found=0, n_copied=0;
                 struct item item;
                 int first=1,res;
