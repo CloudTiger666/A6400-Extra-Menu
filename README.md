@@ -58,6 +58,7 @@
 | **V0 早期測試原形** | 最早期的自製 OSD 觸控選單介面試驗畫面（`A6400 CUSTOM MENU / TOUCH TEST`）。<br><img src="docs/images/a6400-extra-menu-v0-early.jpg" alt="A6400 V0 早期 OSD 觸控測試原形" width="460"> |
 | **社群跨機身移植紀錄（`A7R4A`）** | 2026-11-17 社群開發者基於本專案架構移植至 Sony A7R4A 之選單點亮紀錄（僅作開發參考，非 A6400 機身之地址須自行校準）。<br><img src="docs/images/community-a7r4a-film-menu.jpg" alt="社群移植至 A7R4A 的 Film Menu 實機測試畫面" width="460"> |
 | **Sony α6100（`ILCE-6100`）實機點亮紀錄** | 2026-11-21 實機驗證成功點亮觸控浮層選單（感謝 ASFC-CYJ 提供 A6100 實機驗證；`tools/pmca_deploy_v3_clite.py` 現已內建支援 A6100 / Windows `--safe-serial` 部署）。<br><img src="docs/images/a6100-extra-menu-camera.jpg" alt="Sony α6100 實機成功點亮觸控選單實拍" width="460"> |
+| **Sony α6600（`ILCE-6600`）實機點亮紀錄** | 2026-11-24 實機驗證成功於 Sony α6600 開機掛載 V4.2.1 SLEM 並完成套色轉檔（感謝 **子康** 提供 A6600 實機測試與驗證）。<br><img src="docs/images/a6600-extra-menu-camera.jpg" alt="Sony α6600 實機成功開機點亮觸控選單與套色相冊實拍" width="460"> |
 
 ---
 
@@ -120,7 +121,7 @@ python3 tools/check_public_tree.py
 
 - 本專案新增部分：[PolyForm Noncommercial 1.0.0](LICENSE)（商業使用須另行取得授權）。
 - 沿用的 MIT / Public Domain 元件：見 [THIRD_PARTY.md](THIRD_PARTY.md)。
-- 特別感謝 **ASFC-CYJ** 提供 Sony A6100（ILCE-6100）與 Windows 10 實機測試並協助促成 `--safe-serial` 安全傳輸機制；特別感謝 **阿杰** 貢獻 [《A6400-V3.x 升級工作流程與經驗教訓》](docs/A6400-V3.x升級工作流程與經驗教訓.md) 並協助定位 Windows `oemXX.inf` 驅動包累積與上傳累計回顯問題；完整致謝見 [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md)。Sony、Kodak、Fujifilm、CineStill 等名稱僅用於描述相容性或模擬色彩選項，本專案並非上述公司之官方產品。
+- 特別感謝 **ASFC-CYJ** 提供 Sony A6100（ILCE-6100）與 Windows 10 實機測試並協助促成 `--safe-serial` 安全傳輸機制；特別感謝 **阿杰** 貢獻 [《A6400-V3.x 升級工作流程與經驗教訓》](docs/A6400-V3.x升級工作流程與經驗教訓.md) 並協助定位 Windows `oemXX.inf` 驅動包累積與上傳累計回顯問題；特別感謝 **子康** 貢獻 Sony α6600（ILCE-6600）實機成功開機與套色轉檔驗證；完整致謝見 [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md)。Sony、Kodak、Fujifilm、CineStill 等名稱僅用於描述相容性或模擬色彩選項，本專案並非上述公司之官方產品。
 
 ## 贊助支持
 

@@ -22,6 +22,8 @@ APPROVED_IMAGES = {
         'cd2925fcb4e14945df6ae9b0b6e97c13c6ff7df218fb3016ad74a8f4415c0e3d',
     'docs/images/a6100-extra-menu-camera.jpg':
         '13968f668b8a32f8ecc5bc03321155a858d4e3bd90be548b143265e07f8b58db',
+    'docs/images/a6600-extra-menu-camera.jpg':
+        'd482ea9be4ae9b6049651cc4a3e92bb37166be7419de3b07785faf30c2eb993f',
     'docs/images/a6400-extra-menu-v39-sslf.jpg':
         '54af54b01c15b0eb6c208102abc001919b6d6a028477fa146b942599ca118428',
     'docs/images/sponsor-wechat.jpg':
