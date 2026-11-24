@@ -214,13 +214,13 @@ static void sl_scan_slots_ex(int scan_sd) {
 #endif
 
     if (scan_sd && sl.count < SL_MAX_SLOTS) {
-        DIR *dir = opendir("/mnt/A6400/SOUNDS");
+        DIR *dir = opendir("/tmp_bt/a6400-sounds");
         if (dir) {
             struct dirent *ent;
             while ((ent = readdir(dir)) != 0 && sl.count < SL_MAX_SLOTS) {
                 if (!sl_ends_with_pcm(ent->d_name)) continue;
                 char full[300];
-                snprintf(full, sizeof(full), "/mnt/A6400/SOUNDS/%s", ent->d_name);
+                snprintf(full, sizeof(full), "/tmp_bt/a6400-sounds/%s", ent->d_name);
                 int n = sl_read_file_exact(full, tmp, SL_PCM_MAX);
                 if (n <= 0) continue;
                 struct sl_slot *s = &sl.slots[sl.count++];

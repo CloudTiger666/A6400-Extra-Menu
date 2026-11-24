@@ -1550,6 +1550,49 @@ static void service_test_album(struct transport *t,int idle) {(void)t;(void)idle
 int main(int argc,char **argv) {
     if(argc!=2 || strcmp(argv[1],"watch"))return 2;
 #ifdef A6400_SOUND_LITE
+    /* One-time MPR copy of SD /A6400/SOUNDS .pcm files -> RAM /tmp_bt/a6400-sounds/ */
+    mkdir("/tmp_bt/a6400-sounds",0755);
+    {
+        struct transport t={.pid=-1,.in=-1,.out=-1};
+        for(int attempt=0;attempt<10;++attempt) {
+            if(!transport_start(&t)) {
+                t.scan_started=now_ms();
+                char names[12][48];
+                int n_found=0;
+                struct item item;
+                int first=1,res;
+                while((res=native_item(&t,"ms:/A6400/SOUNDS",first,&item))==1) {
+                    first=0;
+                    if(item.directory || n_found>=12)continue;
+                    size_t nl=strlen(item.name);
+                    if(nl<5u || nl>=sizeof(names[0]))continue;
+                    const char *ext=item.name+nl-4u;
+                    if(ext[0]=='.' && (ext[1]=='p'||ext[1]=='P') &&
+                       (ext[2]=='c'||ext[2]=='C') && (ext[3]=='m'||ext[3]=='M')) {
+                        snprintf(names[n_found++],sizeof(names[0]),"%s",item.name);
+                    }
+                }
+                transport_stop(&t);
+                for(int i=0;i<n_found;++i) {
+                    char src[64],dst[96];
+                    snprintf(src,sizeof(src),"A:/A6400/SOUNDS/%.44s",names[i]);
+                    snprintf(dst,sizeof(dst),"/tmp_bt/a6400-sounds/%.44s",names[i]);
+                    unlink("/tmp_bt/a6400-custom-charo.pcm");
+                    char *rd[]={(char *)"/tmp_bt/a6400-film-native-command.elf",(char *)"sound",src,0};
+                    pid_t cp=fork();
+                    if(cp==0) { execv(rd[0],rd); _exit(127); }
+                    if(cp>0) {
+                        int st=0;
+                        if(waitpid(cp,&st,0)==cp && WIFEXITED(st) && WEXITSTATUS(st)==0) {
+                            (void)rename("/tmp_bt/a6400-custom-charo.pcm",dst);
+                        }
+                    }
+                }
+                if(n_found>0 || res==0)break;
+            }
+            sleep(1);
+        }
+    }
     for(;;) {
         if(access("/tmp_bt/a6400-film.DISABLE",F_OK)==0 ||
            access("/tmp_bt/a6400-film-capture.stop",F_OK)==0) return 0;

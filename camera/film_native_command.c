@@ -96,7 +96,21 @@ static int output_path(const char *p) {
     return 1;
 }
 static int sound_path(const char *p) {
-    return !strcmp(p,"A:/A6400/CHARO.PCM") || !strcmp(p,"A:/A6400/SHUTTER.PCM");
+    if(!strcmp(p,"A:/A6400/CHARO.PCM") || !strcmp(p,"A:/A6400/SHUTTER.PCM"))return 1;
+    if(strncmp(p,"A:/A6400/SOUNDS/",16)!=0)return 0;
+    const char *name=p+16;
+    size_t n=strlen(name);
+    if(n<5u || n>44u || name[0]=='.')return 0;
+    const char *ext=name+n-4u;
+    if(!(ext[0]=='.' && (ext[1]=='p'||ext[1]=='P') &&
+         (ext[2]=='c'||ext[2]=='C') && (ext[3]=='m'||ext[3]=='M')))return 0;
+    for(size_t i=0;i<n;++i) {
+        unsigned char c=(unsigned char)name[i];
+        if(c<=0x20u || c=='/' || c=='\\' || c=='"' || c=='\'' || c==';' ||
+           c=='$' || c=='`' || c=='|' || c=='&' || c=='<' || c=='>' ||
+           c=='*' || c=='?')return 0;
+    }
+    return 1;
 }
 static int usr_ro_mounted(void) {
     char buf[4096];
