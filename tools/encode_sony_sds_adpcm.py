@@ -21,6 +21,29 @@ SLOT_SPECS = {
 }
 
 
+def _read_wav_mono_24k_s16(wav_path):
+    """Read 24 kHz mono 16-bit PCM WAV, supporting both PCM (1) and WAVE_FORMAT_EXTENSIBLE (0xFFFE)."""
+    raw = Path(wav_path).read_bytes()
+    if len(raw) < 44 or raw[:4] != b"RIFF" or raw[8:12] != b"WAVE":
+        raise ValueError("Not a RIFF WAVE file")
+    pos = 12
+    fmt_tag = channels = rate = bits = None
+    while pos + 8 <= len(raw):
+        cid = raw[pos : pos + 4]
+        csz = struct.unpack_from("<I", raw, pos + 4)[0]
+        body = raw[pos + 8 : pos + 8 + csz]
+        if cid == b"fmt " and len(body) >= 16:
+            fmt_tag, channels, rate, _, _, bits = struct.unpack_from("<HHIIHH", body, 0)
+            if fmt_tag == 0xFFFE and len(body) >= 40:
+                fmt_tag = struct.unpack_from("<H", body, 24)[0]
+        elif cid == b"data":
+            if (fmt_tag, channels, rate, bits) != (1, 1, SAMPLE_RATE, 16):
+                raise ValueError(f"WAV format mismatch: tag={fmt_tag} ch={channels} rate={rate} bits={bits}")
+            return list(struct.unpack_from(f"<{len(body) // 2}h", body, 0))
+        pos += 8 + csz + (csz & 1)
+    raise ValueError("WAV missing data chunk")
+
+
 def decode_to_24k_mono_pcm16(input_path):
     """Decode any audio file to 24 kHz mono 16-bit signed LE samples."""
     src = Path(input_path)
@@ -29,17 +52,17 @@ def decode_to_24k_mono_pcm16(input_path):
 
     if src.suffix.lower() == ".wav":
         try:
-            with wave.open(str(src), "rb") as wf:
-                if (wf.getnchannels(), wf.getsampwidth(), wf.getframerate()) == (1, 2, SAMPLE_RATE):
-                    raw = wf.readframes(wf.getnframes())
-                    return list(struct.unpack(f"<{len(raw) // 2}h", raw))
-        except wave.Error:
+            return _read_wav_mono_24k_s16(src)
+        except ValueError:
             pass
 
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
         tmp_wav = Path(tf.name)
     try:
         ffmpeg = shutil.which("ffmpeg")
+        for candidate in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
+            if not ffmpeg and Path(candidate).is_file():
+                ffmpeg = candidate
         afconvert = "/usr/bin/afconvert"
         if ffmpeg:
             subprocess.check_call(
@@ -56,11 +79,7 @@ def decode_to_24k_mono_pcm16(input_path):
                 "Need ffmpeg (or macOS afconvert) to convert non-24kHz-mono-WAV inputs. "
                 "Install ffmpeg: Windows `winget install Gyan.FFmpeg`, Ubuntu/WSL2 `sudo apt install ffmpeg`, macOS `brew install ffmpeg`."
             )
-        with wave.open(str(tmp_wav), "rb") as wf:
-            if (wf.getnchannels(), wf.getsampwidth(), wf.getframerate()) != (1, 2, SAMPLE_RATE):
-                raise RuntimeError("Decoded WAV did not match 24 kHz mono 16-bit PCM")
-            raw = wf.readframes(wf.getnframes())
-            return list(struct.unpack(f"<{len(raw) // 2}h", raw))
+        return _read_wav_mono_24k_s16(tmp_wav)
     finally:
         tmp_wav.unlink(missing_ok=True)
 

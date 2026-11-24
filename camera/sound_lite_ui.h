@@ -86,24 +86,50 @@ static struct sl_state sl;
 #define SL_S_PAGER        "◀ 上一頁        下一頁 ▶"
 #endif
 
-static void sl_compute_wave(const unsigned char *pcm, int bytes, unsigned char out[SL_WAVE_BARS]) {
-    if (!pcm || bytes < 64) {
-        for (int i = 0; i < SL_WAVE_BARS; i++) out[i] = 8;
+static void sl_analyze_sds(const unsigned char *raw, int bytes, unsigned char out_wave[SL_WAVE_BARS], char out_dur[10]) {
+    int total_frames = (raw && bytes >= 32) ? (bytes / 32) : 0;
+    if (total_frames <= 0) {
+        for (int i = 0; i < SL_WAVE_BARS; i++) out_wave[i] = 8;
+        strcpy(out_dur, "0.25s");
         return;
     }
-    int samples = bytes / 2;
-    int step = samples / SL_WAVE_BARS;
+    static short dec[930 * 31];
+    int max_f = total_frames > 930 ? 930 : total_frames;
+    int prev = 0;
+    int active_samples = 0;
+    int idx = 0;
+    for (int f = 0; f < max_f; f++) {
+        unsigned char hdr = raw[f * 32];
+        int mode = (hdr >> 4) & 0xF;
+        int sh = hdr & 0xF;
+        if (sh > 8) sh = 8;
+        for (int j = 1; j < 32; j++) {
+            int v = (signed char)raw[f * 32 + j];
+            int pred = (mode == 0) ? 0 : ((prev * 15) / 16);
+            int s = pred + (v << sh);
+            if (s < -32768) s = -32768;
+            if (s > 32767) s = 32767;
+            dec[idx++] = (short)s;
+            prev = s;
+            if (s > 120 || s < -120) active_samples = idx;
+        }
+    }
+    if (active_samples < 31) active_samples = idx;
+    int centisec = (active_samples * 100 + 12000) / 24000;
+    if (centisec < 1) centisec = 1;
+    snprintf(out_dur, 10, "%d.%02ds", centisec / 100, centisec % 100);
+
+    int step = active_samples / SL_WAVE_BARS;
     if (step < 1) step = 1;
     int max_pk = 1;
     int peaks[SL_WAVE_BARS];
     for (int b = 0; b < SL_WAVE_BARS; b++) {
         int s0 = b * step;
-        int s1 = s0 + step;
-        if (s1 > samples) s1 = samples;
+        int s1 = (b == SL_WAVE_BARS - 1) ? active_samples : (s0 + step);
+        if (s1 > active_samples) s1 = active_samples;
         int pk = 0;
         for (int s = s0; s < s1; s++) {
-            int16_t v = (int16_t)((unsigned)pcm[s * 2] | ((unsigned)pcm[s * 2 + 1] << 8));
-            int av = v < 0 ? -v : v;
+            int av = dec[s] < 0 ? -dec[s] : dec[s];
             if (av > pk) pk = av;
         }
         peaks[b] = pk;
@@ -113,7 +139,7 @@ static void sl_compute_wave(const unsigned char *pcm, int bytes, unsigned char o
         int h = 8 + (peaks[b] * 46) / max_pk;
         if (h < 8) h = 8;
         if (h > 54) h = 54;
-        out[b] = (unsigned char)h;
+        out_wave[b] = (unsigned char)h;
     }
 }
 
@@ -146,13 +172,6 @@ static int sl_write_wps_pbc_inplace(const unsigned char *buf, int valid_bytes) {
     }
     close(dfd);
     return 0;
-}
-
-static void sl_format_dur(int bytes, char out[10]) {
-    if (bytes <= 0) { strcpy(out, "0.25s"); return; }
-    int ms = (bytes * 100) / 32000;
-    if (ms < 1) ms = 1;
-    snprintf(out, 10, "%d.%02ds", ms / 100, ms % 100);
 }
 
 static int sl_ends_with_pcm(const char *name) {
@@ -189,9 +208,8 @@ static void sl_scan_slots_ex(int scan_sd) {
         s->kind = SL_KIND_BUILTIN_ID;
         s->sound_id = 0x34;
         snprintf(s->name, sizeof(s->name), "%s", SL_S_B1_NAME);
-        sl_format_dur(sl.has_base_pcm, s->dur);
         snprintf(s->path, sizeof(s->path), "/tmp_bt/a6400-charo-shutter.pcm");
-        sl_compute_wave(sl.base_pcm, sl.has_base_pcm, s->wave);
+        sl_analyze_sds(sl.base_pcm, sl.has_base_pcm, s->wave, s->dur);
     }
 #if defined(A6400_CHARO_MULTI) && A6400_CHARO_MULTI
     {
@@ -201,9 +219,8 @@ static void sl_scan_slots_ex(int scan_sd) {
             s->kind = SL_KIND_BUILTIN_ID;
             s->sound_id = 0x33;
             snprintf(s->name, sizeof(s->name), "%s", SL_S_B2_NAME);
-            sl_format_dur(n, s->dur);
             s->path[0] = 0;
-            sl_compute_wave(tmp, n, s->wave);
+            sl_analyze_sds(tmp, n, s->wave, s->dur);
         }
         n = sl_read_file_exact("/tmp_bt/a6400-charo-push.pcm", tmp, SL_PCM_MAX);
         if (n > 0) {
@@ -211,9 +228,8 @@ static void sl_scan_slots_ex(int scan_sd) {
             s->kind = SL_KIND_BUILTIN_ID;
             s->sound_id = 0x35;
             snprintf(s->name, sizeof(s->name), "%s", SL_S_B3_NAME);
-            sl_format_dur(n, s->dur);
             s->path[0] = 0;
-            sl_compute_wave(tmp, n, s->wave);
+            sl_analyze_sds(tmp, n, s->wave, s->dur);
         }
     }
 #endif
@@ -236,9 +252,8 @@ static void sl_scan_slots_ex(int scan_sd) {
                 if (len > sizeof(s->name) - 1) len = sizeof(s->name) - 1;
                 memcpy(s->name, ent->d_name, len);
                 s->name[len] = 0;
-                sl_format_dur(n, s->dur);
                 snprintf(s->path, sizeof(s->path), "%s", full);
-                sl_compute_wave(tmp, n, s->wave);
+                sl_analyze_sds(tmp, n, s->wave, s->dur);
             }
             closedir(dir);
         }
