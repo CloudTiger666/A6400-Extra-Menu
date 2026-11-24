@@ -1544,8 +1544,9 @@ static void animate(void *self) {
     ui.mouse_position(ui.system,0,&x,&y);
     int touch=ui.mouse_state(ui.system,0,0);
     int v4_busy_before=(ui.view.menu.visible);
-    /* Suppress film_menu's default touch hits while Sound Lite owns the screen; we handle touch below. */
-    unsigned change=film_native_view_step(&ui.view,now,menu,zoom,other,0,32767,32767);
+    /* Pass real touch state (5/6) so film_native_view_step never auto-closes on invalid state,
+     * while (32767,32767) keeps film_menu's default hitboxes inert so Sound Lite owns touch. */
+    unsigned change=film_native_view_step(&ui.view,now,menu,zoom,other,touch,32767,32767);
     if(change&FILM_MENU_OPENED) {
         sl_scan_slots();
         draw(0,&ui.view.menu);
