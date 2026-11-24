@@ -111,12 +111,13 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_QUAL_12M           "画质: 12MP 超清"
 #define UI_S_QUAL_6M            "画质: 6MP 高清"
 #define UI_S_QUAL_1M7           "画质: 1.7MP 极速"
-#define UI_S_HDR_BUSY           "V4.2.1 SLEM | %s | 转档:%u 已转:%u"
-#define UI_S_HDR_IDLE           "V4.2.1 SLEM | %s | 已转:%u (%u/%u)"
-#define UI_S_HDR_INIT           "V4.2.1 SLEM (hany) | %s"
-#define UI_S_HDR_BOOT           "V4.2.1 SLEM (hany) | 关闭"
+#define UI_S_HDR_BUSY           "V4.3 SLEM | %s | 转档:%u 已转:%u"
+#define UI_S_HDR_IDLE           "V4.3 SLEM | %s | 已转:%u (%u/%u)"
+#define UI_S_HDR_INIT           "V4.3 SLEM (hany) | %s"
+#define UI_S_HDR_BOOT           "V4.3 SLEM (hany) | 关闭"
 #define UI_S_HDR_LUT            "LUT 设置 | %s"
-#define UI_S_HDR_V4             "细节设置 | V4.2.1 SLEM (hany)"
+#define UI_S_HDR_V4             "细节设置 | V4.3 SLEM (hany)"
+#define UI_S_BOOT_READY_TOAST   "V4.3 SLEM 已就绪"
 #define UI_S_HDR_STOCKS         "胶片风格 (%u/2)"
 #define UI_S_FOOT_HOME          "hany | 相册:%u张 | 队列 %u/%u"
 #define UI_S_ALBUM_TILE_FMT     "套色相册 (%u张) >"
@@ -129,7 +130,7 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_DEXP_OFF           "双重曝光: 关闭"
 #define UI_S_DEXP_FMT           "双重曝光: %s (%s)"
 #define UI_S_DEXP_TILE_FMT      "双曝: %s (%s) >"
-#define UI_S_DEXP_HDR_FMT       "V4.2.1 SLEM | 双曝:%s (%s)"
+#define UI_S_DEXP_HDR_FMT       "V4.3 SLEM | 双曝:%s (%s)"
 #define UI_S_DEXP_LOCK_LUT      "胶片滤镜: 关闭 (双曝未完锁定)"
 #define UI_S_DEXP_BLOCK_HDR     "双曝 1/2 未拍完，不可开启 LUT!"
 #define UI_S_DEXP_BLOCK_TOAST   "双曝未拍完，无法开启 LUT"
@@ -151,12 +152,13 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_QUAL_12M           "畫質: 12MP 超清"
 #define UI_S_QUAL_6M            "畫質: 6MP 高清"
 #define UI_S_QUAL_1M7           "畫質: 1.7MP 極速"
-#define UI_S_HDR_BUSY           "V4.2.1 SLEM | %s | 轉檔:%u 已轉:%u"
-#define UI_S_HDR_IDLE           "V4.2.1 SLEM | %s | 已轉:%u (%u/%u)"
-#define UI_S_HDR_INIT           "V4.2.1 SLEM (hany) | %s"
-#define UI_S_HDR_BOOT           "V4.2.1 SLEM (hany) | 關閉"
+#define UI_S_HDR_BUSY           "V4.3 SLEM | %s | 轉檔:%u 已轉:%u"
+#define UI_S_HDR_IDLE           "V4.3 SLEM | %s | 已轉:%u (%u/%u)"
+#define UI_S_HDR_INIT           "V4.3 SLEM (hany) | %s"
+#define UI_S_HDR_BOOT           "V4.3 SLEM (hany) | 關閉"
 #define UI_S_HDR_LUT            "LUT 設定 | %s"
-#define UI_S_HDR_V4             "細節設定 | V4.2.1 SLEM (hany)"
+#define UI_S_HDR_V4             "細節設定 | V4.3 SLEM (hany)"
+#define UI_S_BOOT_READY_TOAST   "V4.3 SLEM 已就緒"
 #define UI_S_HDR_STOCKS         "膠片風格 (%u/2)"
 #define UI_S_FOOT_HOME          "hany | 相冊:%u張 | 佇列 %u/%u"
 #define UI_S_ALBUM_TILE_FMT     "套色相冊 (%u張) >"
@@ -169,7 +171,7 @@ typedef int (*pv_close_fn)(int);
 #define UI_S_DEXP_OFF           "雙重曝光: 關閉"
 #define UI_S_DEXP_FMT           "雙重曝光: %s (%s)"
 #define UI_S_DEXP_TILE_FMT      "雙曝: %s (%s) >"
-#define UI_S_DEXP_HDR_FMT       "V4.2.1 SLEM | 雙曝:%s (%s)"
+#define UI_S_DEXP_HDR_FMT       "V4.3 SLEM | 雙曝:%s (%s)"
 #define UI_S_DEXP_LOCK_LUT      "膠片濾鏡: 關閉 (雙曝未完鎖定)"
 #define UI_S_DEXP_BLOCK_HDR     "雙曝 1/2 未拍完，不可開啟 LUT!"
 #define UI_S_DEXP_BLOCK_TOAST   "雙曝未拍完，無法開啟 LUT"
@@ -386,6 +388,7 @@ static struct {
     int album_touch_down;
     short album_touch_x, album_touch_y;
     int mtf2_wait_release;
+    int boot_toast_done;
     uint32_t mtf2_last_probe_ms;
     uint32_t seen_dexp_pending;
     uint32_t dexp_blocked_until_ms;
@@ -1365,6 +1368,27 @@ static void animate(void *self) {
         if(ui.view.menu.visible || ui_v4.album_mode) {
             ui_toast.visible=0;
         } else {
+#if !defined(A6400_UI_RENDER_DIAGNOSTIC) && TRIAL_MS == 0
+            if(!ui_v4.boot_toast_done) {
+                ui_v4.boot_toast_done=1;
+                if(a6400_ui_toast_v1.seq==ui_toast.seq) {
+                    static const unsigned char boot_bg[4]={18,22,29,215};
+                    static const unsigned char boot_ok[4]={46,196,96,255};
+                    hide_menu_widgets();
+                    place(ui_toast.bg,0,408,16,216,28);
+                    place(ui_toast.accent,0,408,16,6,28);
+                    place(ui_toast.label,1,420,18,200,24);
+                    ui.set_color(ui_toast.bg,boot_bg);
+                    ui.set_color(ui_toast.accent,boot_ok);
+                    ui.set_text(ui_toast.label,UI_S_BOOT_READY_TOAST);
+                    ui.move_last(ui.layer);
+                    ui_toast.visible=1;
+                    ui_toast.until_ms=now+1200u;
+                    sync_layer_active();
+                    record("V4_BOOT_READY_TOAST",0,0);
+                }
+            }
+#endif
             uint32_t seq=a6400_ui_toast_v1.seq;
             if(seq!=ui_toast.seq && a6400_ui_toast_v1.magic==0x54534f54u) {
                 for(unsigned i=0;i<63;i++)ui_toast.text[i]=a6400_ui_toast_v1.text[i];

@@ -307,7 +307,7 @@ int model_menu_visible(void) { return ui.view.menu.visible; }
             # Verify NO auto-hide when A6400_UI_DISPLAY_MS=0 even after 120s idle!
             lib.model_tick(120000, 6, 32767, 32767, 0, 0)
             self.assertEqual(lib.model_menu_visible(), 1)
-            self.assertIn('V4.2.1 SLEM', lib.model_text_at(0).decode('utf-8'))
+            self.assertIn('V4.3 SLEM', lib.model_text_at(0).decode('utf-8'))
             self.assertIn('hany', lib.model_text_at(7).decode('utf-8'))
             # Close menu via bottom-right Close pill (x=510, y=418)
             lib.model_tick(25, 5, 510, 418, 0, 0)

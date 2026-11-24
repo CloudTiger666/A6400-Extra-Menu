@@ -191,7 +191,7 @@ const char *model_toast_text(void) { return model_toast_label; }
             status.active_jobs = 0
             status.seq = 1
             lib.model_open_home()
-            self.assertIn('V4.2.1 SLEM', lib.model_header_text().decode('utf-8'))
+            self.assertIn('V4.3 SLEM', lib.model_header_text().decode('utf-8'))
             self.assertIn('已轉:7 (42/1024)', lib.model_header_text().decode('utf-8'))
             lib.model_open_details()
             self.assertEqual(lib.model_footer_text().decode('utf-8'), '細節設定 >')
