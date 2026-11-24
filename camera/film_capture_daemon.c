@@ -1550,7 +1550,23 @@ static void service_test_album(struct transport *t,int idle) {(void)t;(void)idle
 int main(int argc,char **argv) {
     if(argc!=2 || strcmp(argv[1],"watch"))return 2;
 #ifdef A6400_SOUND_LITE
-    /* One-time MPR copy of SD /A6400/SOUNDS .pcm files -> RAM /tmp_bt/a6400-sounds/ */
+    /* One-time MPR copy of SD /A6400/SOUNDS .pcm files -> RAM /tmp_bt/a6400-sounds/
+     * Each SD slot i (0..11) is MS_BIND-mounted to its own dedicated unused APP AA_RT
+     * asset in /usr/share/avsystemsound/ so Sony's per-BeepID RAM cache never collides. */
+    static const char *const sl_sd_bins[12] = {
+        "/usr/share/avsystemsound/Dslr_Emnt_Wifi_Toggle.bin",              /* 0: appBeepId 0x31 */
+        "/usr/share/avsystemsound/Dslr_Emnt_Wifi_Toggle_Off.bin",          /* 1: appBeepId 0x32 */
+        "/usr/share/avsystemsound/Dslr_Emnt_SelfTimer_2sec.bin",           /* 2: appBeepId 0x2D */
+        "/usr/share/avsystemsound/Dslr_Emnt_SelfTimer_RemoteRelease.bin",  /* 3: appBeepId 0x0E */
+        "/usr/share/avsystemsound/Dslr_Emnt_Select_SwitchMode.bin",        /* 4: appBeepId 0x1D */
+        "/usr/share/avsystemsound/Dslr_Emnt_Menu_Open_Option_On.bin",      /* 5: appBeepId 0x11 */
+        "/usr/share/avsystemsound/Dslr_Emnt_Menu_Close_Option_Off.bin",    /* 6: appBeepId 0x12 */
+        "/usr/share/avsystemsound/Dslr_Emnt_Back_Cancel.bin",              /* 7: appBeepId 0x27 */
+        "/usr/share/avsystemsound/Dslr_Emnt_T_Back_Cancel.bin",            /* 8: appBeepId 0x28 */
+        "/usr/share/avsystemsound/Dslr_Emnt_T_On.bin",                     /* 9: appBeepId 0x29 */
+        "/usr/share/avsystemsound/Dslr_Emnt_T_Off.bin",                    /* 10: appBeepId 0x2A */
+        "/usr/share/avsystemsound/Dslr_Emnt_Move_Up_Wheel_Up.bin"          /* 11: appBeepId 0x2B */
+    };
     mkdir("/tmp_bt/a6400-sounds",0755);
     {
         struct transport t={.pid=-1,.in=-1,.out=-1};
@@ -1558,7 +1574,7 @@ int main(int argc,char **argv) {
             if(!transport_start(&t)) {
                 t.scan_started=now_ms();
                 char names[12][64];
-                int n_found=0, n_copied=0;
+                int n_found=0, n_copied=0, n_bound=0;
                 struct item item;
                 int first=1,res;
                 while((res=native_item(&t,"ms:/A6400/SOUNDS",first,&item))==1) {
@@ -1573,6 +1589,16 @@ int main(int argc,char **argv) {
                     }
                 }
                 transport_stop(&t);
+                for(int a=0;a<n_found;++a) {
+                    for(int b=a+1;b<n_found;++b) {
+                        if(strcmp(names[a],names[b])>0) {
+                            char sw[64];
+                            memcpy(sw,names[a],sizeof(sw));
+                            memcpy(names[a],names[b],sizeof(sw));
+                            memcpy(names[b],sw,sizeof(sw));
+                        }
+                    }
+                }
                 for(int i=0;i<n_found;++i) {
                     char src[64],dst[96];
                     snprintf(src,sizeof(src),"A:/A6400/SOUNDS/%.44s",names[i]);
@@ -1584,13 +1610,20 @@ int main(int argc,char **argv) {
                     if(cp>0) {
                         int st=0;
                         if(waitpid(cp,&st,0)==cp && WIFEXITED(st) && WEXITSTATUS(st)==0) {
-                            if(rename("/tmp_bt/a6400-custom-charo.pcm",dst)==0) n_copied++;
+                            if(rename("/tmp_bt/a6400-custom-charo.pcm",dst)==0) {
+                                n_copied++;
+#ifdef __linux__
+                                (void)umount(sl_sd_bins[i]);
+                                (void)syscall(SYS_umount2,sl_sd_bins[i],2);
+                                if(mount(dst,sl_sd_bins[i],NULL,MS_BIND,NULL)==0) n_bound++;
+#endif
+                            }
                         }
                     }
                 }
                 {
                     FILE *lf=fopen("/tmp_bt/a6400-sound-scan.log","w");
-                    if(lf){fprintf(lf,"attempt=%d res=%d found=%d copied=%d\n",attempt,res,n_found,n_copied);fclose(lf);}
+                    if(lf){fprintf(lf,"attempt=%d res=%d found=%d copied=%d bound=%d\n",attempt,res,n_found,n_copied,n_bound);fclose(lf);}
                 }
                 if(n_copied>0)break;
             }

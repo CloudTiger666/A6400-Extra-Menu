@@ -157,23 +157,6 @@ static int sl_read_file_exact(const char *path, unsigned char *buf, int max_byte
     return total;
 }
 
-static int sl_write_wps_pbc_inplace(const unsigned char *buf, int valid_bytes) {
-    static unsigned char padded[SL_PCM_MAX];
-    if (valid_bytes <= 0 || valid_bytes > SL_PCM_MAX) return -1;
-    for (int i = 0; i < valid_bytes; i++) padded[i] = buf[i];
-    for (int i = valid_bytes; i < SL_PCM_MAX; i++) padded[i] = 0;
-    int dfd = open("/tmp_bt/a6400-charo-shutter.pcm", O_WRONLY, 0);
-    if (dfd < 0) return -1;
-    int wrote = 0;
-    while (wrote < SL_PCM_MAX) {
-        ssize_t w = write(dfd, padded + wrote, (size_t)(SL_PCM_MAX - wrote));
-        if (w <= 0) { close(dfd); return -1; }
-        wrote += (int)w;
-    }
-    close(dfd);
-    return 0;
-}
-
 static int sl_ends_with_pcm(const char *name) {
     size_t n = strlen(name);
     if (n < 5 || name[0] == '.') return 0;
@@ -183,6 +166,23 @@ static int sl_ends_with_pcm(const char *name) {
             (ext[2] == 'c' || ext[2] == 'C') &&
             (ext[3] == 'm' || ext[3] == 'M'));
 }
+
+/* Dedicated 1-based appBeepId per SD slot (matching sl_sd_bins[] in film_capture_daemon.c)
+ * so Sony's ObjSystemSound per-BeepID RAM cache never collides across custom sounds. */
+static const int sl_sd_beep_ids[12] = {
+    0x31, /* 0: Dslr_Emnt_Wifi_Toggle.bin */
+    0x32, /* 1: Dslr_Emnt_Wifi_Toggle_Off.bin */
+    0x2D, /* 2: Dslr_Emnt_SelfTimer_2sec.bin */
+    0x0E, /* 3: Dslr_Emnt_SelfTimer_RemoteRelease.bin */
+    0x1D, /* 4: Dslr_Emnt_Select_SwitchMode.bin */
+    0x11, /* 5: Dslr_Emnt_Menu_Open_Option_On.bin */
+    0x12, /* 6: Dslr_Emnt_Menu_Close_Option_Off.bin */
+    0x27, /* 7: Dslr_Emnt_Back_Cancel.bin */
+    0x28, /* 8: Dslr_Emnt_T_Back_Cancel.bin */
+    0x29, /* 9: Dslr_Emnt_T_On.bin */
+    0x2A, /* 10: Dslr_Emnt_T_Off.bin */
+    0x2B  /* 11: Dslr_Emnt_Move_Up_Wheel_Up.bin */
+};
 
 static void sl_scan_slots_ex(int scan_sd) {
     unsigned char tmp[SL_PCM_MAX];
@@ -237,25 +237,43 @@ static void sl_scan_slots_ex(int scan_sd) {
     if (scan_sd && sl.count < SL_MAX_SLOTS) {
         DIR *dir = opendir("/tmp_bt/a6400-sounds");
         if (dir) {
+            char sd_names[12][64];
+            int n_sd = 0;
             struct dirent *ent;
-            while ((ent = readdir(dir)) != 0 && sl.count < SL_MAX_SLOTS) {
+            while ((ent = readdir(dir)) != 0 && n_sd < 12) {
                 if (!sl_ends_with_pcm(ent->d_name)) continue;
+                size_t nl = strlen(ent->d_name);
+                if (nl >= sizeof(sd_names[0])) continue;
+                memcpy(sd_names[n_sd], ent->d_name, nl + 1);
+                n_sd++;
+            }
+            closedir(dir);
+            for (int a = 0; a < n_sd; ++a) {
+                for (int b = a + 1; b < n_sd; ++b) {
+                    if (strcmp(sd_names[a], sd_names[b]) > 0) {
+                        char sw[64];
+                        memcpy(sw, sd_names[a], sizeof(sw));
+                        memcpy(sd_names[a], sd_names[b], sizeof(sw));
+                        memcpy(sd_names[b], sw, sizeof(sw));
+                    }
+                }
+            }
+            for (int i = 0; i < n_sd && sl.count < SL_MAX_SLOTS; ++i) {
                 char full[300];
-                snprintf(full, sizeof(full), "/tmp_bt/a6400-sounds/%s", ent->d_name);
+                snprintf(full, sizeof(full), "/tmp_bt/a6400-sounds/%.63s", sd_names[i]);
                 int n = sl_read_file_exact(full, tmp, SL_PCM_MAX);
                 if (n <= 0) continue;
                 struct sl_slot *s = &sl.slots[sl.count++];
                 s->kind = SL_KIND_SD_PCM;
-                s->sound_id = 0x34;
-                size_t len = strlen(ent->d_name);
+                s->sound_id = sl_sd_beep_ids[i];
+                size_t len = strlen(sd_names[i]);
                 if (len > 4) len -= 4;
                 if (len > sizeof(s->name) - 1) len = sizeof(s->name) - 1;
-                memcpy(s->name, ent->d_name, len);
+                memcpy(s->name, sd_names[i], len);
                 s->name[len] = 0;
                 snprintf(s->path, sizeof(s->path), "%s", full);
                 sl_analyze_sds(tmp, n, s->wave, s->dur);
             }
-            closedir(dir);
         }
     }
 
@@ -277,21 +295,7 @@ static int sl_activate_slot(int idx) {
 
     const struct sl_slot *s = &sl.slots[idx];
     if (s->kind == SL_KIND_OFF) return 0;
-    if (s->kind == SL_KIND_BUILTIN_ID) {
-        if (s->sound_id == 0x34 && sl.has_base_pcm > 0) {
-            sl_write_wps_pbc_inplace(sl.base_pcm, sl.has_base_pcm);
-        }
-        return s->sound_id;
-    }
-    if (s->kind == SL_KIND_SD_PCM) {
-        unsigned char tmp[SL_PCM_MAX];
-        int n = sl_read_file_exact(s->path, tmp, SL_PCM_MAX);
-        if (n > 0) {
-            sl_write_wps_pbc_inplace(tmp, n);
-            return 0x34;
-        }
-    }
-    return 0;
+    return s->sound_id;
 }
 
 static int sl_current_sound_id(void) {
