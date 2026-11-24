@@ -4,14 +4,22 @@
 
 ---
 
-## [未釋出] 套色相冊改讀 TEST 目錄
+## [V4.3 SLEM (未釋出)] - 2026-11-24（開發驗證中）
 
-- 套色相冊張數改為 SD 卡 `/A6400/TEST/F` + 7 位數字 + `.JPG` 的檔名索引，最多 1024 筆；超過時首頁顯示 `1024張+`。取電池後重新列出，不再只留本次開機的 16 張記憶體預覽。
-- 翻頁只解碼目前這一張成 `600×400`。未出圖時整屏鋪深色，畫面正中顯示「讀取中」，頂欄只留張數。正在看相冊時，這一張排在下一輪 DCIM 掃描之前；閒置等待也會被翻頁打斷。拍攝任務進行中仍不佔用檔案通道。剛拍完的右下角即時小窗仍用轉檔當下產生的預覽。
-- 相冊預覽讀取 JPEG 的 Exif 方向，鋪圖方式與即時小窗相同，並在寫入畫面之前先把圖層清成深色。16:9 液晶以 `640×480` 座標驅動，像素偏寬，故以 `448×400` 顯示 3:2，左右留黑邊。
-- 修正相冊下半張變成單色色塊、以及部分照片一直「讀取中」：`/tmp_bt` 只有 1–2 MiB，放不下整張 JPEG，複製只寫到一半。解碼前改為在 `/tmp_bt/a6400-film-job` 臨時掛載獨立記憶體盤，解完即卸載並刪除目錄，以免擋住下一次拍攝轉檔（轉檔腳本要求該目錄不存在）。檔案結尾沒有 JPEG 結束標記時判定失敗；同一張連續失敗 3 次後於畫面正中顯示「讀取失敗」。讀取中途退出會中止這一次複製與解碼，並卸載該記憶體盤。
-- 實機已能列出 `ms:/A6400/TEST`。電腦測試涵蓋檔名過濾、排序、1024 筆上限、翻頁優先於 DCIM 掃描，以及直向 Exif 與上下分色 JPEG 的預覽。
-- 與上游雙重曝光並存時，`dexp_mode`、`dexp_seq`、`dexp_pending` 仍緊接在 `slot_labels` 之後。套色相冊的索引與讀取請求接在這三個欄位後面。預覽環回寫停在雙曝欄位之前，不覆蓋 TEST 張數，也不清掉雙曝狀態。
+- **開機包 `gzip` 壓縮瘦身 52.6%**：[`host-tests/build_film_native_boot_package.py`](host-tests/build_film_native_boot_package.py) 改以 `gzip`（level 9、`mtime=0`）壓縮 `/tmp/a6400-film-boot-v15.tar`（`245,760 B` → `116,517 B`，省下 `129,243 B`），[`host-tests/film-runtime-v2-templates/bootstrap-local.sh`](host-tests/film-runtime-v2-templates/bootstrap-local.sh) 改以 BusyBox `tar -xzf` 解壓並保留 `tar -xf` 備援。
+- **開機右上角「已就緒」微提示 ＋ 版號升級 `V4.3 SLEM`**：[`camera/native_film_ui_trial3.c`](camera/native_film_ui_trial3.c) 於開機首次掛載進入 UI 時在右上角閃出 1.2 秒綠色提示 `V4.3 SLEM 已就緒`（不影響 `a6400_ui_toast_v1.seq`）。
+- **MPR 掃描抗雜訊修復**：[`camera/native_capture_probe.c`](camera/native_capture_probe.c) 新增 `timing_trace_line()` 過濾穿插於 `MPR FileIf FFirst` 回應中的 `line=..., time=..., diff=...` 除錯追蹤行，消除 `invalid_name` 短暫重試。
+- **套色相冊改讀 TEST 目錄（PR #15）**：
+  - 套色相冊張數改為 SD 卡 `/A6400/TEST/F` + 7 位數字 + `.JPG` 的檔名索引，最多 1024 筆；超過時首頁顯示 `1024張+`。取電池後重新列出，不再只留本次開機的 16 張記憶體預覽。
+  - 翻頁只解碼目前這一張，使用 `/tmp_bt/a6400-film-job` 臨時掛載 32 MiB 私有 tmpfs 解碼、完成或退出即卸載清除，並檢查 JPEG EOI（連續失敗 3 次顯示「讀取失敗」）。
+  - 修正 16:9 液晶 `640×480` 比例，改以 `448×400` 顯示 3:2 照片（左右留黑邊）並依 EXIF 方向自動轉正直拍。
+  - 保留 `dexp_mode`、`dexp_seq`、`dexp_pending` 欄位偏移與雙重曝光狀態，互不衝突。
+
+## [V4.2.1 DEXP (hany)] - 2026-11-23（雙重曝光 ＋ MTF2 自動重測）
+
+- **新增「雙重曝光」（濾色 Screen / 變亮 Lighten / 平均 Average）**：[`camera/author_fast_jpeg.h`](camera/author_fast_jpeg.h)、[`camera/film_jpeg.cpp`](camera/film_jpeg.cpp)、[`camera/film_capture_daemon.c`](camera/film_capture_daemon.c) 實作純整數快速混合（12MP 自動上限 6MP 防 OOM），拍第 1 張跳出 `1/2 已拍` Toast，拍第 2 張自動混合並觸發即時預覽小窗與套色相冊。
+- **嚴格 LUT 互斥保護**：開啟雙重曝光自動關閉 LUT；雙曝 `1/2` 未拍完時鎖定禁止開啟 LUT（切回「關閉」即可隨時取消）。
+- **MTF2 原生 MENU 觸控自動重測**：[`camera/native_film_ui_trial3.c`](camera/native_film_ui_trial3.c) 於進入「細節設定」或點擊「原生MENU觸控」列時自動重測，解決 A6400 `v2.00` 開機慢載入 `CautionConfig.so` 誤判「不支援」問題；`--diag` 新增 `IM_MAPS` 診斷。
 
 ## [V4.1 SLEM (hany)] - 2026-11-23（Sony LUT Extra Menu）
 
