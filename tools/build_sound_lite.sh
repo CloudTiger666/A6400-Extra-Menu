@@ -182,15 +182,16 @@ fi
 {charo_block}
 "$RAM/a6400-ui-load-guard.elf" "$RAM/a6400-install-persist.req" >>"$LOG" 2>&1 &
 '''
-(pdir / 'autoexec.sh').write_text(autoexec_sh)
-(pdir / 'autoexec.sh').chmod(0o755)
+(pkg / 'bootstrap-local.sh').write_text(autoexec_sh)
+(pkg / 'bootstrap-local.sh').chmod(0o755)
 
 manifest = {
     'package_id': hashlib.sha256(tar_path.read_bytes()).hexdigest()[:16],
     'edition': 'A6400-Sound-Lite-V4.3',
     'ui_theme': 'C2-Cream-Black',
     'charo': {n: h for n, h in charo_files},
+    'extra_persistent_files': [],
 }
-(pkg / 'package-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+(pkg / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 print('SOUND_LITE_PACKAGE_OK', manifest['package_id'], 'tar_bytes=', tar_path.stat().st_size)
 PY
