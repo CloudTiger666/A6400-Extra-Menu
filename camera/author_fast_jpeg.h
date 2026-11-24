@@ -1126,14 +1126,16 @@ static int render_author_dexp(int fd1,int fd2,const char *path,int blend_mode,
                               const char *preview_path) {
     unsigned begin=film_clock_ms();
     unsigned orient=author_metadata_orientation(metadata,metadata_size);
-    int want_hires=(hires>=1)?1:0;
+    /* Always prefer 1.7MP embedded preview (1616x1080) so holding two decoded
+     * RGB buffers simultaneously stays well within camera RAM budget. */
+    (void)hires;
+    int want_hires=0;
     author_image img1;
     int r1=author_select_and_decode(fd1,want_hires,&img1);
     if (r1) { printf("FILM_ERROR dexp_decode1=%d\n",r1); return r1; }
     {
         author_image img2;
-        int r2=author_select_and_decode(fd2,img1.reduced?1:0,&img2);
-        if (r2 && img1.reduced) r2=author_select_and_decode(fd2,0,&img2);
+        int r2=author_select_and_decode(fd2,0,&img2);
         if (r2) { printf("FILM_ERROR dexp_decode2=%d\n",r2); return r2; }
         author_blend_pixels(img1.pixels,img1.width,img1.height,
                             img2.pixels,img2.width,img2.height,blend_mode);

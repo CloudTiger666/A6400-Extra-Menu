@@ -6,6 +6,9 @@
 
 ## [V4.3 SLEM (未釋出)] - 2026-11-24（開發驗證中）
 
+- **雙重曝光穩定性與一鍵取消重拍升級**：
+  - 雙重曝光改為固定使用 `1.7MP` 內嵌預覽（`1616×1080`，雙圖合計約 `10 MiB` RAM），徹底解決 `6MP/12MP` 畫質下同時解碼兩張大圖觸發「影像解碼失敗」的問題。
+  - 拍完第 1 張進入 `1/2待拍` 時，主選單右上角「套色相冊」自動變為醒目橘底 **「取消雙曝 1/2」**，點擊一鍵捨棄第 1 張並保持雙重曝光模式開啟（可直接重拍第 1 張，不需進細節設定關閉再開）。
 - **防剛呼出假死雙重保護（`tid` 自癒 ＋ `ticker_layer` 重啟）**：[`camera/native_film_ui_trial3.c`](camera/native_film_ui_trial3.c) 於 `animate()` 改為在 `cur_tid != ui.tid` 時自動認領新執行緒 `tid` 不中斷迴圈，並於 `visibility(1)` 剛開啟選單時重新確保 `ui.ticker_layer` 維持啟用與 `set_animate(ui.ticker, 1)`，降低系統切換圖層導致選單停留畫面卻無響應的機率。
 - **開機包 `gzip` 壓縮瘦身 52.6%**：[`host-tests/build_film_native_boot_package.py`](host-tests/build_film_native_boot_package.py) 改以 `gzip`（level 9、`mtime=0`）壓縮 `/tmp/a6400-film-boot-v15.tar`（`245,760 B` → `116,517 B`，省下 `129,243 B`），[`host-tests/film-runtime-v2-templates/bootstrap-local.sh`](host-tests/film-runtime-v2-templates/bootstrap-local.sh) 改以 BusyBox `tar -xzf` 解壓並保留 `tar -xf` 備援。
 - **開機右上角「已就緒」微提示 ＋ 版號升級 `V4.3 SLEM`**：[`camera/native_film_ui_trial3.c`](camera/native_film_ui_trial3.c) 於開機首次掛載進入 UI 時在右上角閃出 1.2 秒綠色提示 `V4.3 SLEM 已就緒`（不影響 `a6400_ui_toast_v1.seq`）。

@@ -636,18 +636,20 @@ static void push_v4_ring_to_ui(int bump_latest_seq) {
     close(fd);
 }
 
-static uint32_t read_ui_dexp(uint32_t *out_seq) {
+static uint32_t read_ui_dexp(uint32_t *out_seq,uint32_t *out_pending) {
     if(out_seq)*out_seq=0u;
+    if(out_pending)*out_pending=0u;
     uint32_t base=0;
     int fd=open_ui_region(FILM_DAEMON_V4_RVA,sizeof(struct a6400_ui_v4_v1),0,&base);
     if(fd<0)return 0u;
-    uint32_t hdr[2]={0,0},dexp[2]={0,0};
+    uint32_t hdr[2]={0,0},dexp[3]={0,0,0};
     size_t doff=offsetof(struct a6400_ui_v4_v1,dexp_mode);
     if(pread(fd,hdr,sizeof(hdr),(off_t)base)==(ssize_t)sizeof(hdr) &&
        hdr[0]==A6400_V4_MAGIC && hdr[1]==A6400_V4_VERSION &&
        pread(fd,dexp,sizeof(dexp),(off_t)(base+doff))==(ssize_t)sizeof(dexp)) {
         close(fd);
         if(out_seq)*out_seq=dexp[1];
+        if(out_pending)*out_pending=dexp[2];
         return dexp[0]<=A6400_DEXP_AVERAGE?dexp[0]:0u;
     }
     close(fd);
@@ -770,7 +772,11 @@ static void stop_preview_subsystem(void) {}
 static void publish_v4_shot(int applied,const char *settings,const char *target,int hires) {
     (void)applied;(void)settings;(void)target;(void)hires;
 }
-static uint32_t read_ui_dexp(uint32_t *out_seq) { if(out_seq)*out_seq=0u; return 0u; }
+static uint32_t read_ui_dexp(uint32_t *out_seq,uint32_t *out_pending) {
+    if(out_seq)*out_seq=0u;
+    if(out_pending)*out_pending=0u;
+    return 0u;
+}
 static void push_v4_dexp_pending(uint32_t pending_val) { (void)pending_val; }
 #endif
 static unsigned count_active_queue(void) {
@@ -1600,10 +1606,14 @@ int main(int argc,char **argv) {
         if(stop<0){reason="stop_marker";break;}
         if(daemon_signal){result=20;reason="signal";break;}
         if(stop){result=0;reason="stop_file";break;}
-        if(dexp_first_valid && read_ui_dexp(NULL)==0u) {
-            dexp_first_valid=0;dexp_first_path[0]=0;dexp_first_bytes=0u;
-            push_v4_dexp_pending(0u);
-            puts("FILM_DEXP_CANCELLED_IDLE");
+        if(dexp_first_valid) {
+            uint32_t cur_pending=0u;
+            uint32_t cur_mode=read_ui_dexp(NULL,&cur_pending);
+            if(cur_mode==0u || cur_pending==0u) {
+                dexp_first_valid=0;dexp_first_path[0]=0;dexp_first_bytes=0u;
+                push_v4_dexp_pending(0u);
+                puts(cur_mode==0u?"FILM_DEXP_CANCELLED_IDLE":"FILM_DEXP_CANCELLED_SHOT1");
+            }
         }
         if(!FILM_CAPTURE_PERSISTENT && (uint32_t)(now_ms()-start)>=FILM_CAPTURE_ACTIVE_MS) {
             result=0;reason="expired";break;
@@ -1717,7 +1727,13 @@ int main(int argc,char **argv) {
             transport_stop(&transport);post_trigger_follow=0;
             if(daemon_signal || stop_requested()!=0)continue;
             struct queued *q=&queue[pending];char settings[128];
-            uint32_t dmode=read_ui_dexp(NULL);
+            uint32_t cur_dp=0u;
+            uint32_t dmode=read_ui_dexp(NULL,&cur_dp);
+            if(dexp_first_valid && (dmode==0u || cur_dp==0u)) {
+                dexp_first_valid=0;dexp_first_path[0]=0;dexp_first_bytes=0u;
+                push_v4_dexp_pending(0u);
+                puts("FILM_DEXP_CANCELLED_SHOT1");
+            }
             if(dmode!=0u) {
                 /* Double Exposure mode is active (strictly mutually exclusive with LUT). */
                 char src_cur[40];
@@ -1739,8 +1755,9 @@ int main(int argc,char **argv) {
                         printf("FILM_DEXP_SHOT1 source=%s bytes=%u mode=%s uptime_ms=%u\n",
                                dexp_first_path,dexp_first_bytes,dexp_arg_name(dmode),(unsigned)now_ms());
                     } else {
-                        int hires=read_ui_hires();
-                        int eff_hires=(hires>=1)?1:0;
+                        /* Always blend 1.7MP embedded previews (~10 MiB total RAM) to avoid
+                         * camera OOM decode failures when user LUT quality is 6MP/12MP. */
+                        int eff_hires=0;
                         make_target_path(&q->entry,next_output,q->target,sizeof(q->target));
                         next_output=(next_output+1u)%1000u;
                         push_v4_dexp_pending(2u);

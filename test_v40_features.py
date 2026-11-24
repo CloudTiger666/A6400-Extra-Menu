@@ -404,7 +404,9 @@ int model_menu_visible(void) { return ui.view.menu.visible; }
             lib.model_tick(25, 5, 140, 418, 0, 0)
             lib.model_tick(25, 6, 32767, 32767, 0, 0)
             self.assertIn('關閉', lib.model_text_at(1).decode('utf-8'))
-            # Simulate Shot 1/2 captured (dexp_pending = 1) -> trying to turn LUT ON must be BLOCKED!
+            # Simulate Shot 1/2 captured (dexp_pending = 1):
+            #   - Home Top-Right tile becomes "取消雙曝 1/2" (replaces Graded Album while 1/2 is pending)
+            #   - Trying to turn LUT ON is BLOCKED
             v4.dexp_pending = 1
             lib.model_tick(25, 6, 32767, 32767, 0, 0)
             self.assertIn('雙曝未完鎖定', lib.model_text_at(1).decode('utf-8'))
@@ -412,8 +414,17 @@ int model_menu_visible(void) { return ui.view.menu.visible; }
             lib.model_tick(25, 6, 32767, 32767, 0, 0)
             self.assertIn('雙曝 1/2 未拍完，不可開啟 LUT!', lib.model_text_at(0).decode('utf-8'))
             self.assertIn('關閉', lib.model_text_at(1).decode('utf-8'))
-            # Simulate Shot 2/2 finished (dexp_pending = 0) -> turning LUT ON now succeeds & auto-disables Double Exposure!
-            v4.dexp_pending = 0
+            # Return to Home -> Top-Right tile shows "取消雙曝 1/2", tapping it cancels 1/2 while keeping dexp_mode ON!
+            lib.model_tick(25, 5, 510, 418, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertEqual(lib.model_text_at(2).decode('utf-8'), '取消雙曝 1/2')
+            lib.model_tick(25, 5, 450, 150, 0, 0)
+            lib.model_tick(25, 6, 32767, 32767, 0, 0)
+            self.assertEqual(v4.dexp_pending, 0)
+            self.assertEqual(v4.dexp_mode, 1)  # Double Exposure stays ON so user can re-shoot Shot 1/2!
+            self.assertEqual(lib.model_text_at(2).decode('utf-8'), '套色相冊 (2張) >')
+            # Now enter LUT Settings and turn LUT ON -> succeeds & auto-disables Double Exposure!
+            lib.model_tick(25, 5, 180, 150, 0, 0)
             lib.model_tick(25, 6, 32767, 32767, 0, 0)
             lib.model_tick(25, 5, 200, 120, 0, 0)
             lib.model_tick(25, 6, 32767, 32767, 0, 0)
