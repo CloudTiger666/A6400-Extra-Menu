@@ -774,11 +774,12 @@ def main():
             for vpath, vbytes in verify_targets:
                 verify_camera_file(cam, vpath, vbytes, f"VERIFY_{posixpath.basename(vpath)}", hash_algo)
 
+            tar_x_flag = "xzf" if boot_tar_bytes.startswith(b"\x1f\x8b") else "xf"
             for name, exp_bytes in entry_items:
                 must_cmd(cam, "/bin/busybox mkdir -p /tmp_bt/v3c_up/ex", f"MKEX_{name}")
                 must_cmd(
                     cam,
-                    f"/bin/busybox tar -xf /tmp_bt/v3c_up/new-boot.tar -C /tmp_bt/v3c_up/ex {name}",
+                    f"/bin/busybox tar -{tar_x_flag} /tmp_bt/v3c_up/new-boot.tar -C /tmp_bt/v3c_up/ex {name}",
                     f"EX_{name}",
                 )
                 verify_camera_file(cam, f"/tmp_bt/v3c_up/ex/{name}", exp_bytes, f"VERIFY_{name}", hash_algo)
