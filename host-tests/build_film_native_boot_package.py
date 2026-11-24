@@ -4,6 +4,7 @@
 This verifies inputs and archive structure, not an ELF's behavior or ABI.
 No connection, installation, SD mounting, or execution occurs here.
 """
+import gzip
 import io
 import json
 from pathlib import Path
@@ -31,7 +32,7 @@ def bundle_bytes(entries):
             member.uname = member.gname = ''
             member.type = tarfile.REGTYPE
             archive.addfile(member, io.BytesIO(data))
-    result = stream.getvalue()
+    result = gzip.compress(stream.getvalue(), compresslevel=9, mtime=0)
     base.require(len(result) <= MAX_BUNDLE, 'bundle exceeds RAM staging budget')
     return result
 

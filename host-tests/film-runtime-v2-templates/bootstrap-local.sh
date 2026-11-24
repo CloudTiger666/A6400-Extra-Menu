@@ -74,7 +74,9 @@ set -- $byte_line
 test "$#" = 1 && test "$1" = "$BUNDLE_BYTES" || fail bundle_size
 gate || fail extract_gate
 "$BB" mkdir "$STAGE" || fail stage_directory
-"$BB" tar -xf "$COPY" -C "$STAGE" || fail extract
+if ! "$BB" tar -xzf "$COPY" -C "$STAGE" 2>/dev/null; then
+    "$BB" tar -xf "$COPY" -C "$STAGE" || fail extract
+fi
 hash_is "$STAGE/prepare.sh" @@PREPARE_SHA@@ || fail prepare_pin
 phase prepare || fail phase
 /bin/sh "$STAGE/prepare.sh"
