@@ -418,10 +418,29 @@ static int wd_version_line(const char *line,size_t bytes) {
 /* 1=entry,0=normal end,-1=untrustworthy/incomplete reply,-2=a complete,
  * explicit unmounted-media outcome. The caller must discard the whole partial
  * inventory and start a new root FFirst; never resume an invalidated cursor. */
+static int timing_trace_line(const char *s,size_t n) {
+    /* Sony's profiler occasionally interleaves `line=836, time=24843, diff=7328`
+     * right after `MprFileIf : FFirst [pathname]`. Match the exact numeric shape. */
+    size_t i=0u;
+    if(n<19u || memcmp(s,"line=",5u))return 0;
+    i=5u;
+    if(i>=n || !isdigit((unsigned char)s[i]))return 0;
+    while(i<n && isdigit((unsigned char)s[i]))++i;
+    if(i+7u>n || memcmp(s+i,", time=",7u))return 0;
+    i+=7u;
+    if(i>=n || !isdigit((unsigned char)s[i]))return 0;
+    while(i<n && isdigit((unsigned char)s[i]))++i;
+    if(i+7u>n || memcmp(s+i,", diff=",7u))return 0;
+    i+=7u;
+    if(i>=n || !isdigit((unsigned char)s[i]))return 0;
+    while(i<n && isdigit((unsigned char)s[i]))++i;
+    return i==n;
+}
 static int benign_async_debug(const char *s,size_t n) {
-    /* Older or AVCHD-populated cards may interleave non-error [AVIMMGR] or
-     * [MprCnv] trace lines inside directory scans. Never treat errors or the
-     * explicit DEVICE Unmounted status line as benign. */
+    /* Older or AVCHD-populated cards may interleave non-error [AVIMMGR],
+     * [MprCnv], or `line=..., time=..., diff=...` profiler lines inside scans.
+     * Never treat errors or the explicit DEVICE Unmounted status line as benign. */
+    if(timing_trace_line(s,n))return 1;
     if(line_equals(s,n,"[AVIMMGR][MS1]GetDeviceInfo : ER_SEQUENCE  DEVICE Unmounted"))return 0;
     int match=(n>=9u && !memcmp(s,"[AVIMMGR]",9u)) || (n>=8u && !memcmp(s,"[MprCnv]",8u));
     if(!match)return 0;
