@@ -579,7 +579,7 @@ exit /b 0
 if exist "!SCRIPT_DIR!\pmca_deploy_v3_clite.py" (
     call :win_to_wsl "!SCRIPT_DIR!" TOOLS_WSL
     if not "!TOOLS_WSL!"=="" (
-        "!WSL_EXE!" -d !DISTRO! -- /bin/sh -c "cp -f '!TOOLS_WSL!/pmca_deploy_v3_clite.py' /opt/a6400/pmca_deploy_v3_clite.py && (test ! -f '!TOOLS_WSL!/build_autoexec_hook.py' || cp -f '!TOOLS_WSL!/build_autoexec_hook.py' /opt/a6400/build_autoexec_hook.py) && chmod 755 /opt/a6400/pmca_deploy_v3_clite.py && rm -rf /opt/a6400/__pycache__" <nul >nul 2>&1
+        "!WSL_EXE!" -d !DISTRO! -- python3 -c "import os,shutil,sys; src=sys.argv[1]; dst='/opt/a6400'; [shutil.copy2(os.path.join(src,f), os.path.join(dst,f)) for f in ('pmca_deploy_v3_clite.py','build_autoexec_hook.py') if os.path.isfile(os.path.join(src,f))]; os.chmod(os.path.join(dst,'pmca_deploy_v3_clite.py'),0o755); shutil.rmtree(os.path.join(dst,'__pycache__'),ignore_errors=True)" "!TOOLS_WSL!" <nul >nul 2>&1
     )
 )
 exit /b 0

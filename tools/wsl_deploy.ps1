@@ -1,4 +1,4 @@
-﻿param(
+param(
     [ValidateSet("install", "rollback", "diag", "cleanup")]
     [string]$Action = "install",
     [ValidateSet("", "tc", "sc")]
@@ -529,7 +529,12 @@ $usbipdExe = Ensure-UsbipdOffline
 Ensure-AlpineDistro
 $wslExe = Find-WslExe
 
-$wslArgs = @("/opt/a6400/pmca_deploy_v3_clite.py", "--pmca-dir", "/opt/pmca-re", "--safe-serial", "--yes")
+$deployerPy = "/opt/a6400/pmca_deploy_v3_clite.py"
+$localDeployer = Join-Path $ScriptDir "pmca_deploy_v3_clite.py"
+if (Test-Path $localDeployer) {
+    $deployerPy = Convert-ToWslPath $localDeployer
+}
+$wslArgs = @($deployerPy, "--pmca-dir", "/opt/pmca-re", "--safe-serial", "--yes")
 if ($Action -eq "rollback") {
     $wslArgs += "--rollback"
 } elseif ($Action -eq "diag") {
