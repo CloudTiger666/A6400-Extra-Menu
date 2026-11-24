@@ -48,6 +48,14 @@
 
 ---
 
+## 機身直出實拍樣片
+
+| 逆光花卉與藍天（含底片光暈） | 日光卷雲與高光柔焦 |
+| --- | --- |
+| <img src="docs/images/sample-bougainvillea-sky.jpg" alt="Sony A6400 機內套色直出樣片：逆光花卉與藍天" width="420"> | <img src="docs/images/sample-clouds-sunlight.jpg" alt="Sony A6400 機內套色直出樣片：日光卷雲" width="420"> |
+
+---
+
 ## 外觀版本對照
 
 | 版本 | 說明與實機畫面 |

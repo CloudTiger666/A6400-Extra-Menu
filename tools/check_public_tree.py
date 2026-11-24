@@ -28,6 +28,10 @@ APPROVED_IMAGES = {
         '54af54b01c15b0eb6c208102abc001919b6d6a028477fa146b942599ca118428',
     'docs/images/sponsor-wechat.jpg':
         '0f069a8b81c054daab52bce48ac5fde15b90fd42828f5beba3540019c66bd008',
+    'docs/images/sample-bougainvillea-sky.jpg':
+        '5c72bc9f173b3968b582ba05566f32f080536a7328e71d770ac6256dca7b19a0',
+    'docs/images/sample-clouds-sunlight.jpg':
+        '291da6ce909c0e9603a9afe049311f416b9c020ea2352a01eac5bfd50cb3f806',
 }
 FORBIDDEN_SUFFIXES = {
     '.elf', '.so', '.dylib', '.o', '.a', '.bin', '.dump', '.req',
