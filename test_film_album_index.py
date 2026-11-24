@@ -178,6 +178,10 @@ class AlbumPreviewTests(unittest.TestCase):
         self.assertLess(watch.find('album_flip_waiting()'), watch.find('transport_start(&transport)'))
         self.assertIn('FILM_ALBUM_CACHE_HIT', text)
         self.assertIn('FILM_ALBUM_PREFETCH_OK', text)
+        inv_test = text.split('static int inventory_test_album', 1)[1].split('static void publish_album_catalog', 1)[0]
+        self.assertIn('t->scan_started=now_ms()', inv_test)
+        daemon_build = (ROOT / 'host-tests/build_film_capture_daemon.sh').read_text(encoding='utf-8')
+        self.assertIn('#define SCAN_MS 180000u', daemon_build)
         ui = (ROOT / 'camera/native_film_ui_trial3.c').read_text(encoding='utf-8')
         leave = ui.split('static void v4_exit_album', 1)[1].split('static void visibility', 1)[0]
         self.assertIn('album_view_seq=0', leave)

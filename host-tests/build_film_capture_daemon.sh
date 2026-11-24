@@ -9,7 +9,13 @@ SETTINGS=${4:?exact camera settings CLI ELF}
 ACTIVE=${FILM_CAPTURE_ACTIVE_MS:-600000}
 PERSISTENT=${FILM_CAPTURE_PERSISTENT:-0}
 JOB_TIMEOUT=${FILM_CAPTURE_JOB_TIMEOUT_MS:-600000}
-BASELINE_TIMEOUT=${FILM_CAPTURE_BASELINE_TIMEOUT_MS:-60000}
+if [ -n "${FILM_CAPTURE_BASELINE_TIMEOUT_MS:-}" ]; then
+    BASELINE_TIMEOUT=$FILM_CAPTURE_BASELINE_TIMEOUT_MS
+elif [ "$PERSISTENT" = 1 ]; then
+    BASELINE_TIMEOUT=180000
+else
+    BASELINE_TIMEOUT=60000
+fi
 mkdir -p "$OUT"
 python3 - "$ROOT/host-tests/camera-mpr_monio.elf" "$SCRIPT" "$SETTINGS" "$OUT" "$ACTIVE" "$PERSISTENT" "$JOB_TIMEOUT" "$BASELINE_TIMEOUT" <<'PY'
 from pathlib import Path
@@ -87,7 +93,7 @@ if persistent=='1':
              '#define CAPTURE_QUIET_MS 80u\n',
              '#define CAPTURE_INTERVAL_MS 100u\n',
              '#define CAPTURE_STABLE_MS 800u\n',
-             '#define SCAN_MS 45000u\n',
+             '#define SCAN_MS 180000u\n',
              '#define FILM_CAPTURE_LATEST_DIR_ONLY 1\n',
              '#define FILM_CAPTURE_PROC_TRIGGER 1\n',
              '#define FILM_CAPTURE_PROC_TICK_MS 100u\n',

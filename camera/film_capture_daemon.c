@@ -1234,6 +1234,7 @@ static int run_exec_until_left(const char *file,char *const argv[],uint32_t seq,
 }
 static int inventory_test_album(struct transport *t,struct film_album_index *out) {
     film_album_index_reset(out);
+    t->scan_started=now_ms();
     struct item item;
     int first=1,result;
     while((result=native_item(t,"ms:/A6400/TEST",first,&item))==1) {
