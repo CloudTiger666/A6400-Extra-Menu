@@ -6,6 +6,7 @@
 
 ## [V4.3 SLEM (未釋出)] - 2026-11-24（開發驗證中）
 
+- **防剛呼出假死雙重保護（`tid` 自癒 ＋ `ticker_layer` 重啟）**：[`camera/native_film_ui_trial3.c`](camera/native_film_ui_trial3.c) 於 `animate()` 改為在 `cur_tid != ui.tid` 時自動認領新執行緒 `tid` 不中斷迴圈，並於 `visibility(1)` 剛開啟選單時重新確保 `ui.ticker_layer` 維持啟用與 `set_animate(ui.ticker, 1)`，降低系統切換圖層導致選單停留畫面卻無響應的機率。
 - **開機包 `gzip` 壓縮瘦身 52.6%**：[`host-tests/build_film_native_boot_package.py`](host-tests/build_film_native_boot_package.py) 改以 `gzip`（level 9、`mtime=0`）壓縮 `/tmp/a6400-film-boot-v15.tar`（`245,760 B` → `116,517 B`，省下 `129,243 B`），[`host-tests/film-runtime-v2-templates/bootstrap-local.sh`](host-tests/film-runtime-v2-templates/bootstrap-local.sh) 改以 BusyBox `tar -xzf` 解壓並保留 `tar -xf` 備援。
 - **開機右上角「已就緒」微提示 ＋ 版號升級 `V4.3 SLEM`**：[`camera/native_film_ui_trial3.c`](camera/native_film_ui_trial3.c) 於開機首次掛載進入 UI 時在右上角閃出 1.2 秒綠色提示 `V4.3 SLEM 已就緒`（不影響 `a6400_ui_toast_v1.seq`）。
 - **MPR 掃描抗雜訊修復**：[`camera/native_capture_probe.c`](camera/native_capture_probe.c) 新增 `timing_trace_line()` 過濾穿插於 `MPR FileIf FFirst` 回應中的 `line=..., time=..., diff=...` 除錯追蹤行，消除 `invalid_name` 短暫重試。

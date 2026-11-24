@@ -1011,7 +1011,12 @@ static void visibility(void *unused,int active) {
     (void)unused;
     input_snapshot(active?3:5);
     record(active?"SHOW_BEFORE_MOVE":"HIDE_BEFORE_ACTIVE",active,0);
-    if(active){ui.move_last(ui.layer);record("SHOW_AFTER_MOVE",0,0);}
+    if(active){
+        ui.move_last(ui.layer);
+        record("SHOW_AFTER_MOVE",0,0);
+        if(ui.ticker_layer)ui.layer_active(ui.ticker_layer,1);
+        if(ui.ticker)ui.set_animate(ui.ticker,1);
+    }
     ui.layer_active(ui.layer,active);
     input_snapshot(active?4:6);
     if(active){ui.opened_ms=now_ms();ui.ever_opened=1;}
@@ -1330,8 +1335,13 @@ static int stop_old_v1(void) {
 }
 static void animate(void *self) {
     if(!ui.running)return;
-    if(self!=ui.ticker || (uint32_t)syscall(SYS_gettid)!=ui.tid) {
+    uint32_t cur_tid=(uint32_t)syscall(SYS_gettid);
+    if(self!=ui.ticker) {
         ui.running=0;record("FILM_BAD_TICK_CONTEXT",0,0);return;
+    }
+    if(cur_tid!=ui.tid) {
+        record("FILM_TICK_TID_RECOVER",(int)ui.tid,(int)cur_tid);
+        ui.tid=cur_tid;
     }
     if(a6400_ui_stop_requested_v1==1u) {
         stop_trial("FILM_STOP_REQUESTED");
