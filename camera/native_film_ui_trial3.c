@@ -1544,32 +1544,7 @@ static void animate(void *self) {
         draw(0,&ui.view.menu);
     }
     if(ui.view.menu.visible) {
-        if(menu==1 && !(change&FILM_MENU_OPENED)) {
-            /* MENU button closes Sound Deck cleanly */
-        }
-        int k_prev=(ui.key(ui.keys,A6400_KEY_LEFT,0)==1 ||
-                    ui.key(ui.keys,A6400_KEY_WHEEL_CCW,0)==1 ||
-                    ui.key(ui.keys,0x10000003,0)==1);
-        int k_next=(ui.key(ui.keys,A6400_KEY_RIGHT,0)==1 ||
-                    ui.key(ui.keys,A6400_KEY_WHEEL_CW,0)==1 ||
-                    ui.key(ui.keys,0x10000004,0)==1);
-        int k_ok=(ui.key(ui.keys,A6400_KEY_CENTER,0)==1);
-        int k_c1=(ui.key(ui.keys,0x70a9,0)==1);
         int dirty=0, play_now=0;
-        if(k_prev && !sl.last_prev && sl.count>0) {
-            int nxt=(sl.active>0)?(sl.active-1):(sl.count-1);
-            sl_activate_slot(nxt);
-            dirty=1; play_now=1;
-        }
-        if(k_next && !sl.last_next && sl.count>0) {
-            int nxt=(sl.active+1<sl.count)?(sl.active+1):0;
-            sl_activate_slot(nxt);
-            dirty=1; play_now=1;
-        }
-        if(k_ok && !sl.last_ok) { play_now=1; }
-        if(k_c1 && !sl.last_c1) { sl.hi_repeat^=1; dirty=1; }
-        sl.last_prev=k_prev; sl.last_next=k_next; sl.last_ok=k_ok; sl.last_c1=k_c1;
-
         if(touch==5) {
             if(!sl.touch_down && x>=0 && x<640 && y>=0 && y<480) {
                 sl.touch_down=1; sl.touch_x=x; sl.touch_y=y;
@@ -1577,18 +1552,30 @@ static void animate(void *self) {
         } else if(touch==6 && sl.touch_down) {
             short tx=sl.touch_x, ty=sl.touch_y;
             sl.touch_down=0;
-            if(tx<22 || tx>=618 || ty<26 || ty>=454) {
+            if(tx<22 || tx>=618 || ty<26 || ty>=454 ||
+               (tx>=384 && tx<600 && ty>=386 && ty<438)) {
                 film_native_view_hide(&ui.view);
-            } else if(tx>=36 && tx<354 && ty>=78 && ty<78+SL_VIS_ROWS*58) {
-                int r=(ty-78)/58;
+            } else if(tx>=36 && tx<354 && ty>=74 && ty<74+SL_VIS_ROWS*52) {
+                int r=(ty-74)/52;
                 int idx=sl.scroll+r;
                 if(idx>=0 && idx<sl.count) {
                     sl_activate_slot(idx);
                     dirty=1; play_now=1;
                 }
-            } else if(tx>=384 && tx<600 && ty>=250 && ty<302) {
+            } else if(tx>=36 && tx<192 && ty>=394 && ty<442) {
+                if(sl.scroll>0) {
+                    sl.scroll-=SL_VIS_ROWS;
+                    if(sl.scroll<0)sl.scroll=0;
+                    dirty=1;
+                }
+            } else if(tx>=198 && tx<354 && ty>=394 && ty<442) {
+                if(sl.scroll+SL_VIS_ROWS<sl.count) {
+                    sl.scroll+=SL_VIS_ROWS;
+                    dirty=1;
+                }
+            } else if(tx>=384 && tx<600 && ty>=210 && ty<262) {
                 play_now=1;
-            } else if(tx>=384 && tx<600 && ty>=320 && ty<372) {
+            } else if(tx>=384 && tx<600 && ty>=276 && ty<328) {
                 sl.hi_repeat^=1;
                 dirty=1;
             }
@@ -1603,7 +1590,6 @@ static void animate(void *self) {
         }
     } else {
         sl.touch_down=0;
-        sl.last_prev=sl.last_next=sl.last_ok=sl.last_c1=0;
     }
 #else
     static const int dismiss_keys[]={0x3,0x15,0x30,0x66,0xa7,0x1ac,0x1af,

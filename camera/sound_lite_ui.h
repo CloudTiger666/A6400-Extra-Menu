@@ -46,17 +46,18 @@ struct sl_state {
     short touch_x, touch_y;
     int last_prev, last_next, last_ok, last_c1;
 
-    /* Lean native widgets (20 panels + 10 labels total -> zero compositor lag) */
+    /* Lean native widgets (24 panels + 12 labels total -> zero compositor lag, 100% touch) */
     void *outer_bdr, *left_bg, *right_bg, *v_div, *hdr_div;
     void *row_bgs[SL_VIS_ROWS];
     void *row_acc; /* single cream accent bar on the active row */
+    void *pg_prev_bg, *pg_next_bg;
     void *wave_bdr, *wave_bg;
     void *wave_bars[SL_WAVE_BARS];
-    void *btn1_bdr, *btn1_bg, *btn2_bdr, *btn2_bg;
+    void *btn1_bdr, *btn1_bg, *btn2_bdr, *btn2_bg, *btn3_bdr, *btn3_bg;
 
-    void *l_hdr;
+    void *l_hdr, *l_pager;
     void *row_lbl[SL_VIS_ROWS];
-    void *r_name, *r_btn1, *r_btn2;
+    void *r_name, *r_btn1, *r_btn2, *r_btn3;
 };
 
 static struct sl_state sl;
@@ -70,6 +71,8 @@ static struct sl_state sl;
 #define SL_S_BTN_PLAY     "▶ 试听快门音"
 #define SL_S_BTN_HI_ON    "Hi+ 连拍：开"
 #define SL_S_BTN_HI_OFF   "Hi+ 连拍：关"
+#define SL_S_BTN_CLOSE    "✕ 关闭菜单"
+#define SL_S_PAGER        "◀ 上一页        下一页 ▶"
 #else
 #define SL_S_BOOT_TOAST   "Sound Lite 已就緒"
 #define SL_S_OFF_NAME     "關閉快門音效"
@@ -79,6 +82,8 @@ static struct sl_state sl;
 #define SL_S_BTN_PLAY     "▶ 試聽快門音"
 #define SL_S_BTN_HI_ON    "Hi+ 連拍：開"
 #define SL_S_BTN_HI_OFF   "Hi+ 連拍：關"
+#define SL_S_BTN_CLOSE    "✕ 關閉選單"
+#define SL_S_PAGER        "◀ 上一頁        下一頁 ▶"
 #endif
 
 static void sl_compute_wave(const unsigned char *pcm, int bytes, unsigned char out[SL_WAVE_BARS]) {
@@ -283,7 +288,9 @@ static void sl_hide_widgets(void) {
     static const unsigned char clear_c[4] = {0, 0, 0, 0};
     void *panels[] = {
         sl.outer_bdr, sl.left_bg, sl.right_bg, sl.v_div, sl.hdr_div,
-        sl.row_acc, sl.wave_bdr, sl.wave_bg, sl.btn1_bdr, sl.btn1_bg, sl.btn2_bdr, sl.btn2_bg
+        sl.row_acc, sl.pg_prev_bg, sl.pg_next_bg,
+        sl.wave_bdr, sl.wave_bg,
+        sl.btn1_bdr, sl.btn1_bg, sl.btn2_bdr, sl.btn2_bg, sl.btn3_bdr, sl.btn3_bg
     };
     for (unsigned i = 0; i < sizeof(panels) / sizeof(panels[0]); i++) {
         if (panels[i]) { place(panels[i], 0, 0, 0, 0, 0); paint(panels[i], clear_c); }
@@ -295,28 +302,33 @@ static void sl_hide_widgets(void) {
     for (int i = 0; i < SL_WAVE_BARS; i++) {
         if (sl.wave_bars[i]) { place(sl.wave_bars[i], 0, 0, 0, 0, 0); paint(sl.wave_bars[i], clear_c); }
     }
-    void *lbls[] = { sl.l_hdr, sl.r_name, sl.r_btn1, sl.r_btn2 };
+    void *lbls[] = { sl.l_hdr, sl.l_pager, sl.r_name, sl.r_btn1, sl.r_btn2, sl.r_btn3 };
     for (unsigned i = 0; i < sizeof(lbls) / sizeof(lbls[0]); i++) {
         if (lbls[i]) { place(lbls[i], 1, 0, 0, 0, 0); write_lbl(lbls[i], ""); }
     }
 }
 
 static int sl_build_widgets(void *(*make_fn)(int)) {
-    sl.outer_bdr = make_fn(0);
-    sl.left_bg   = make_fn(0);
-    sl.right_bg  = make_fn(0);
-    sl.v_div     = make_fn(0);
-    sl.hdr_div   = make_fn(0);
-    sl.row_acc   = make_fn(0);
-    sl.wave_bdr  = make_fn(0);
-    sl.wave_bg   = make_fn(0);
-    sl.btn1_bdr  = make_fn(0);
-    sl.btn1_bg   = make_fn(0);
-    sl.btn2_bdr  = make_fn(0);
-    sl.btn2_bg   = make_fn(0);
+    sl.outer_bdr  = make_fn(0);
+    sl.left_bg    = make_fn(0);
+    sl.right_bg   = make_fn(0);
+    sl.v_div      = make_fn(0);
+    sl.hdr_div    = make_fn(0);
+    sl.row_acc    = make_fn(0);
+    sl.pg_prev_bg = make_fn(0);
+    sl.pg_next_bg = make_fn(0);
+    sl.wave_bdr   = make_fn(0);
+    sl.wave_bg    = make_fn(0);
+    sl.btn1_bdr   = make_fn(0);
+    sl.btn1_bg    = make_fn(0);
+    sl.btn2_bdr   = make_fn(0);
+    sl.btn2_bg    = make_fn(0);
+    sl.btn3_bdr   = make_fn(0);
+    sl.btn3_bg    = make_fn(0);
     if (!sl.outer_bdr || !sl.left_bg || !sl.right_bg || !sl.v_div || !sl.hdr_div ||
-        !sl.row_acc || !sl.wave_bdr || !sl.wave_bg || !sl.btn1_bdr || !sl.btn1_bg ||
-        !sl.btn2_bdr || !sl.btn2_bg)
+        !sl.row_acc || !sl.pg_prev_bg || !sl.pg_next_bg ||
+        !sl.wave_bdr || !sl.wave_bg || !sl.btn1_bdr || !sl.btn1_bg ||
+        !sl.btn2_bdr || !sl.btn2_bg || !sl.btn3_bdr || !sl.btn3_bg)
         return -5;
     for (int i = 0; i < SL_VIS_ROWS; i++) {
         sl.row_bgs[i] = make_fn(0);
@@ -326,11 +338,13 @@ static int sl_build_widgets(void *(*make_fn)(int)) {
         sl.wave_bars[i] = make_fn(0);
         if (!sl.wave_bars[i]) return -5;
     }
-    sl.l_hdr  = make_fn(1);
-    sl.r_name = make_fn(1);
-    sl.r_btn1 = make_fn(1);
-    sl.r_btn2 = make_fn(1);
-    if (!sl.l_hdr || !sl.r_name || !sl.r_btn1 || !sl.r_btn2) return -5;
+    sl.l_hdr   = make_fn(1);
+    sl.l_pager = make_fn(1);
+    sl.r_name  = make_fn(1);
+    sl.r_btn1  = make_fn(1);
+    sl.r_btn2  = make_fn(1);
+    sl.r_btn3  = make_fn(1);
+    if (!sl.l_hdr || !sl.l_pager || !sl.r_name || !sl.r_btn1 || !sl.r_btn2 || !sl.r_btn3) return -5;
     for (int i = 0; i < SL_VIS_ROWS; i++) {
         sl.row_lbl[i] = make_fn(1);
         if (!sl.row_lbl[i]) return -5;
@@ -341,36 +355,36 @@ static int sl_build_widgets(void *(*make_fn)(int)) {
 }
 
 static void sl_draw_deck(void) {
-    /* Minimalist Warm Cream (#F2EDE4) + Matte Obsidian (#121213)
-     * 100% compatible with Sony's native white GEN_Label -> crystal clear & zero lag! */
+    /* Minimalist Warm Cream (#F2EDE4) + Matte Obsidian (#121213), 100% Touch-Only */
     static const unsigned char c_scrim[4]     = {  0,   0,   0, 175};
     static const unsigned char c_cream[4]     = {242, 237, 228, 255}; /* #F2EDE4 warm cream */
     static const unsigned char c_cream_dim[4] = {150, 144, 134, 220}; /* muted warm stone */
     static const unsigned char c_bg_left[4]   = { 18,  18,  20, 248}; /* #121214 matte black */
     static const unsigned char c_bg_right[4]  = { 12,  12,  14, 248}; /* #0C0C0E deep black */
-    static const unsigned char c_row_idle[4]  = { 24,  24,  27, 255}; /* subtle card */
-    static const unsigned char c_row_sel[4]   = { 44,  42,  38, 255}; /* warm charcoal active */
-    static const unsigned char c_btn_bg[4]    = { 34,  33,  30, 255}; /* dark warm button */
-    static const unsigned char c_div[4]       = { 68,  65,  58, 235}; /* hairline */
+    static const unsigned char c_row_idle[4]  = { 24,  24,  27, 255};
+    static const unsigned char c_row_sel[4]   = { 44,  42,  38, 255};
+    static const unsigned char c_btn_bg[4]    = { 34,  33,  30, 255};
+    static const unsigned char c_close_bg[4]  = { 54,  26,  26, 255};
+    static const unsigned char c_close_bdr[4] = {220, 110, 100, 255};
+    static const unsigned char c_div[4]       = { 68,  65,  58, 235};
     static const unsigned char c_clear[4]     = {  0,   0,   0,   0};
 
     place(ui.background, 0, 0, 0, 640, 480);  paint(ui.background, c_scrim);
-    /* Crisp 2px Warm Cream outer frame around Matte Black Sound Deck */
     place(sl.outer_bdr,  0, 22, 26, 596, 428); paint(sl.outer_bdr, c_cream);
     place(sl.left_bg,    0, 24, 28, 342, 424); paint(sl.left_bg, c_bg_left);
     place(sl.right_bg,   0, 366, 28, 250, 424); paint(sl.right_bg, c_bg_right);
     place(sl.v_div,      0, 366, 28, 1, 424);   paint(sl.v_div, c_div);
-    place(sl.hdr_div,    0, 36, 68, 318, 1);    paint(sl.hdr_div, c_div);
+    place(sl.hdr_div,    0, 36, 66, 318, 1);    paint(sl.hdr_div, c_div);
 
     char hdr[48];
     snprintf(hdr, sizeof(hdr), "SOUND DECK   %02d / %02d", sl.active, sl.count > 0 ? sl.count - 1 : 0);
-    place(sl.l_hdr, 1, 40, 36, 312, 28);
+    place(sl.l_hdr, 1, 40, 35, 312, 26);
     write_lbl(sl.l_hdr, hdr);
 
     int acc_drawn = 0;
     for (int r = 0; r < SL_VIS_ROWS; r++) {
         int idx = sl.scroll + r;
-        int ry = 78 + r * 58;
+        int ry = 74 + r * 52;
         if (idx >= sl.count) {
             place(sl.row_bgs[r], 0, 0, 0, 0, 0); paint(sl.row_bgs[r], c_clear);
             place(sl.row_lbl[r], 1, 0, 0, 0, 0); write_lbl(sl.row_lbl[r], "");
@@ -378,44 +392,53 @@ static void sl_draw_deck(void) {
         }
         int sel = (idx == sl.active);
         const struct sl_slot *s = &sl.slots[idx];
-        place(sl.row_bgs[r], 0, 36, ry, 318, 50);
+        place(sl.row_bgs[r], 0, 36, ry, 318, 46);
         paint(sl.row_bgs[r], sel ? c_row_sel : c_row_idle);
         if (sel) {
-            place(sl.row_acc, 0, 36, ry, 6, 50);
+            place(sl.row_acc, 0, 36, ry, 6, 46);
             paint(sl.row_acc, c_cream);
             acc_drawn = 1;
         }
         char line[48];
-        snprintf(line, sizeof(line), "%02d  %s  (%s)", idx, s->name, s->dur);
-        place(sl.row_lbl[r], 1, 52, ry + 11, 294, 28);
+        snprintf(line, sizeof(line), "%02d  %s (%s)", idx, s->name, s->dur);
+        place(sl.row_lbl[r], 1, 50, ry + 10, 296, 26);
         write_lbl(sl.row_lbl[r], line);
     }
     if (!acc_drawn) { place(sl.row_acc, 0, 0, 0, 0, 0); paint(sl.row_acc, c_clear); }
 
-    /* Right Panel: Active Slot Name + Warm Cream Waveform + 2 Cream-Bordered Buttons */
+    /* Left bottom touch pager (prev / next page) */
+    place(sl.pg_prev_bg, 0, 36, 396, 152, 42); paint(sl.pg_prev_bg, sl.scroll > 0 ? c_btn_bg : c_row_idle);
+    place(sl.pg_next_bg, 0, 202, 396, 152, 42); paint(sl.pg_next_bg, (sl.scroll + SL_VIS_ROWS < sl.count) ? c_btn_bg : c_row_idle);
+    place(sl.l_pager,    1, 52, 404, 290, 26); write_lbl(sl.l_pager, SL_S_PAGER);
+
+    /* Right Panel: Active Slot Name + Warm Cream Waveform + 3 Touch Buttons (Play / Hi+ / Close) */
     const struct sl_slot *cur = (sl.active >= 0 && sl.active < sl.count) ? &sl.slots[sl.active] : &sl.slots[0];
     char rtitle[48];
     snprintf(rtitle, sizeof(rtitle), "%02d  %s", sl.active, cur->name);
-    place(sl.r_name, 1, 384, 52, 218, 34);
+    place(sl.r_name, 1, 384, 46, 218, 32);
     write_lbl(sl.r_name, rtitle);
 
-    place(sl.wave_bdr, 0, 384, 114, 216, 78); paint(sl.wave_bdr, c_cream_dim);
-    place(sl.wave_bg,  0, 385, 115, 214, 76); paint(sl.wave_bg, c_bg_left);
+    place(sl.wave_bdr, 0, 384, 96, 216, 76); paint(sl.wave_bdr, c_cream_dim);
+    place(sl.wave_bg,  0, 385, 97, 214, 74); paint(sl.wave_bg, c_bg_left);
     for (int b = 0; b < SL_WAVE_BARS; b++) {
         int bh = cur->wave[b];
         int bx = 400 + b * 24;
-        int by = 115 + (76 - bh) / 2;
+        int by = 97 + (74 - bh) / 2;
         place(sl.wave_bars[b], 0, bx, by, 10, bh);
         paint(sl.wave_bars[b], (sl.active > 0 && bh >= 16) ? c_cream : c_cream_dim);
     }
 
-    place(sl.btn1_bdr, 0, 384, 250, 216, 52); paint(sl.btn1_bdr, c_cream);
-    place(sl.btn1_bg,  0, 386, 252, 212, 48); paint(sl.btn1_bg, c_btn_bg);
-    place(sl.r_btn1,   1, 398, 263, 192, 28); write_lbl(sl.r_btn1, SL_S_BTN_PLAY);
+    place(sl.btn1_bdr, 0, 384, 210, 216, 52); paint(sl.btn1_bdr, c_cream);
+    place(sl.btn1_bg,  0, 386, 212, 212, 48); paint(sl.btn1_bg, c_btn_bg);
+    place(sl.r_btn1,   1, 398, 223, 192, 26); write_lbl(sl.r_btn1, SL_S_BTN_PLAY);
 
-    place(sl.btn2_bdr, 0, 384, 320, 216, 52); paint(sl.btn2_bdr, sl.hi_repeat ? c_cream : c_div);
-    place(sl.btn2_bg,  0, 386, 322, 212, 48); paint(sl.btn2_bg, c_row_idle);
-    place(sl.r_btn2,   1, 398, 333, 192, 28); write_lbl(sl.r_btn2, sl.hi_repeat ? SL_S_BTN_HI_ON : SL_S_BTN_HI_OFF);
+    place(sl.btn2_bdr, 0, 384, 276, 216, 52); paint(sl.btn2_bdr, sl.hi_repeat ? c_cream : c_div);
+    place(sl.btn2_bg,  0, 386, 278, 212, 48); paint(sl.btn2_bg, c_row_idle);
+    place(sl.r_btn2,   1, 398, 289, 192, 26); write_lbl(sl.r_btn2, sl.hi_repeat ? SL_S_BTN_HI_ON : SL_S_BTN_HI_OFF);
+
+    place(sl.btn3_bdr, 0, 384, 386, 216, 52); paint(sl.btn3_bdr, c_close_bdr);
+    place(sl.btn3_bg,  0, 386, 388, 212, 48); paint(sl.btn3_bg, c_close_bg);
+    place(sl.r_btn3,   1, 412, 399, 168, 26); write_lbl(sl.r_btn3, SL_S_BTN_CLOSE);
 }
 
 #endif

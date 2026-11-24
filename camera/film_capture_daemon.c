@@ -1554,11 +1554,11 @@ int main(int argc,char **argv) {
     mkdir("/tmp_bt/a6400-sounds",0755);
     {
         struct transport t={.pid=-1,.in=-1,.out=-1};
-        for(int attempt=0;attempt<10;++attempt) {
+        for(int attempt=0;attempt<30;++attempt) {
             if(!transport_start(&t)) {
                 t.scan_started=now_ms();
                 char names[12][48];
-                int n_found=0;
+                int n_found=0, n_copied=0;
                 struct item item;
                 int first=1,res;
                 while((res=native_item(&t,"ms:/A6400/SOUNDS",first,&item))==1) {
@@ -1584,13 +1584,17 @@ int main(int argc,char **argv) {
                     if(cp>0) {
                         int st=0;
                         if(waitpid(cp,&st,0)==cp && WIFEXITED(st) && WEXITSTATUS(st)==0) {
-                            (void)rename("/tmp_bt/a6400-custom-charo.pcm",dst);
+                            if(rename("/tmp_bt/a6400-custom-charo.pcm",dst)==0) n_copied++;
                         }
                     }
                 }
-                if(n_found>0 || res==0)break;
+                {
+                    FILE *lf=fopen("/tmp_bt/a6400-sound-scan.log","w");
+                    if(lf){fprintf(lf,"attempt=%d res=%d found=%d copied=%d\n",attempt,res,n_found,n_copied);fclose(lf);}
+                }
+                if(n_copied>0)break;
             }
-            sleep(1);
+            sleep(2);
         }
     }
     for(;;) {
