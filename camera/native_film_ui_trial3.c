@@ -237,7 +237,7 @@ typedef void (*beep_play_fn)(void *,int);
 #ifndef A6400_CHARO_REPEAT_MS
 #define A6400_CHARO_REPEAT_MS 95u
 #endif
-static int charo_sound_id(int mode) {
+static __attribute__((unused)) int charo_sound_id(int mode) {
 #if defined(A6400_CHARO_MULTI) && A6400_CHARO_MULTI
     if(mode==1)return A6400_CHARO_CONNECT_SOUND_ID;
     if(mode==2)return A6400_CHARO_SOUND_ID;
@@ -413,7 +413,7 @@ static struct {
 
 static void record(const char *event,int a,int b);
 
-static void v4_reprobe_mtf2(uint32_t now) {
+static __attribute__((unused)) void v4_reprobe_mtf2(uint32_t now) {
 #ifdef A6400_DISABLE_MTF2
     (void)now;
 #else
@@ -510,6 +510,9 @@ static void *find_bmp_thunk(uintptr_t bmp_base,const char *sym_name,
     }
     return 0;
 }
+#ifdef A6400_SOUND_LITE
+static color_fn ui_label_color=0;
+#endif
 static __attribute__((noinline)) int resolve(void) {
 #define API(member,type,name,offset) do {ui.member=(type)api(name,offset);if(!ui.member)return -1;}while(0)
     API(widget_ctor,ctor_fn,"_ZN2ux6wgtsys6WidgetC1Ev",0x5ed5ad);
@@ -536,6 +539,11 @@ static __attribute__((noinline)) int resolve(void) {
 #ifdef A6400_CHARO_SHUTTER
     ui_theme.beep_play=(beep_play_fn)api("_ZN13AppWidgetBase8beepPlayEi",0);
     if(!ui_theme.beep_play)return -1;
+#endif
+#ifdef A6400_SOUND_LITE
+    ui_label_color=(color_fn)dlsym(RTLD_DEFAULT,"_ZN9GEN_Label14setColorDirectERKN6stella6CColorE");
+    if(!ui_label_color)ui_label_color=(color_fn)dlsym(RTLD_DEFAULT,"_ZN9GEN_Label12setTextColorERKN6stella6CColorE");
+    if(!ui_label_color)ui_label_color=(color_fn)dlsym(RTLD_DEFAULT,"_ZN9GEN_Label12setFontColorERKN6stella6CColorE");
 #endif
     /* Optional native GEN_CacheInsImg + RGBA4444 (CreateImageParam fmt=7, same as
      * Sony's GEN_QRCode) zero-flicker preview renderer. */
@@ -597,6 +605,9 @@ static void paint(void *panel,const unsigned char *c) {
 static void write_lbl(void *label,const char *s) {
     if(label)ui.set_text(label,s);
 }
+#ifdef A6400_SOUND_LITE
+#include "sound_lite_ui.h"
+#endif
 /* Signature 3-color RGBA palette triads for all 10 built-in film stocks. */
 static const unsigned char stock_palettes[10][3][4] = {
     { {236,186,134,255}, {214,148,128,255}, {156,166,132,255} }, /* 0 Portra 400 */
@@ -696,6 +707,9 @@ static void hide_menu_widgets(void) {
         place(ui.labels[i],1,0,0,0,0);
         write_lbl(ui.labels[i],ui.texts[i]);
     }
+#ifdef A6400_SOUND_LITE
+    sl_hide_widgets();
+#endif
 }
 static void hide_toast_widgets(void) {
     static const unsigned char clear_c[4]={0,0,0,0};
@@ -876,7 +890,7 @@ static int v4_load_bin_to_slot(struct v4_native_slot *slot,const int dims[][2],i
     ui_v4.sprite_set_img((unsigned char *)slot->widget+0x164u,slot->res_id,0x80u);
     return 0;
 }
-static void v4_show_popup(uint32_t now) {
+static __attribute__((unused)) void v4_show_popup(uint32_t now) {
     static const int pop_dims[1][2]={{(int)A6400_POPUP_W,(int)A6400_POPUP_H}};
     char path[160];
     snprintf(path,sizeof(path),"%s/popup.bin",A6400_PV_DIR_RUNTIME);
@@ -948,7 +962,7 @@ static void v4_draw_album_hud(const char *top_text,const char *bot_text,int opaq
     ui.move_last(ui.layer);
     sync_layer_active();
 }
-static void v4_album_sync_view(void) {
+static __attribute__((unused)) void v4_album_sync_view(void) {
     if(!ui_v4.album_mode)return;
     uint32_t cnt=a6400_ui_v4_v1.album_count;
     if(cnt==0u) {
@@ -1067,6 +1081,11 @@ static void draw(void *unused,const struct film_menu *menu) {
     v4_hide_native_img();
     hide_toast_widgets();
     ui_toast.visible=0;
+#ifdef A6400_SOUND_LITE
+    hide_menu_widgets();
+    if(menu->visible)sl_draw_deck();
+    return;
+#endif
     int is_home=(menu->page==FILM_MENU_HOME);
     int is_lut=(menu->page==FILM_MENU_DETAILS);
     int is_v4=(menu->page==FILM_MENU_V4);
@@ -1427,7 +1446,11 @@ static void animate(void *self) {
                     place(ui_toast.label,1,420,18,200,24);
                     ui.set_color(ui_toast.bg,boot_bg);
                     ui.set_color(ui_toast.accent,boot_ok);
+#ifdef A6400_SOUND_LITE
+                    ui.set_text(ui_toast.label,SL_S_BOOT_TOAST);
+#else
                     ui.set_text(ui_toast.label,UI_S_BOOT_READY_TOAST);
+#endif
                     ui.move_last(ui.layer);
                     ui_toast.visible=1;
                     ui_toast.until_ms=now+1200u;
@@ -1505,6 +1528,91 @@ static void animate(void *self) {
 #endif
     if(!get_key_instance_fn || get_key_instance_fn()!=ui.keys){stop_trial("FILM_KEY_INSTANCE_CHANGED");return;}
     int menu=ui.key(ui.keys,0x1ab,0),zoom=ui.key(ui.keys,0x70dc,0),other=0;
+#ifdef A6400_SOUND_LITE
+    if(ui.view.menu.visible) {
+        if(ui.key(ui.keys,A6400_KEY_SHUTTER,0)==1 ||
+           ui.key(ui.keys,A6400_KEY_PLAY,0)==1 ||
+           ui.key(ui.keys,A6400_KEY_TRASH,0)==1)other=1;
+    } else {
+        static const int dismiss_keys[]={0x3,0x15,0x30,0x66,0xa7,0x1ac,0x1af,
+            0x1f0,0x1f4,0x1f7,0x1f8,0x1f9,0x7095,0x70a9,0x70aa,0x70ab,
+            0x70ad,0x70c4,0x10000000,0x10000001,0x10000003,0x10000004};
+        for(unsigned i=0;i<sizeof(dismiss_keys)/sizeof(*dismiss_keys);i++)
+            if(ui.key(ui.keys,dismiss_keys[i],0)==1)other=1;
+    }
+    short x=32767,y=32767;
+    ui.mouse_position(ui.system,0,&x,&y);
+    int touch=ui.mouse_state(ui.system,0,0);
+    int v4_busy_before=(ui.view.menu.visible);
+    /* Suppress film_menu's default touch hits while Sound Lite owns the screen; we handle touch below. */
+    unsigned change=film_native_view_step(&ui.view,now,menu,zoom,other,0,32767,32767);
+    if(change&FILM_MENU_OPENED) {
+        sl_scan_slots();
+        draw(0,&ui.view.menu);
+    }
+    if(ui.view.menu.visible) {
+        if(menu==1 && !(change&FILM_MENU_OPENED)) {
+            /* MENU button closes Sound Deck cleanly */
+        }
+        int k_prev=(ui.key(ui.keys,A6400_KEY_LEFT,0)==1 ||
+                    ui.key(ui.keys,A6400_KEY_WHEEL_CCW,0)==1 ||
+                    ui.key(ui.keys,0x10000003,0)==1);
+        int k_next=(ui.key(ui.keys,A6400_KEY_RIGHT,0)==1 ||
+                    ui.key(ui.keys,A6400_KEY_WHEEL_CW,0)==1 ||
+                    ui.key(ui.keys,0x10000004,0)==1);
+        int k_ok=(ui.key(ui.keys,A6400_KEY_CENTER,0)==1);
+        int k_c1=(ui.key(ui.keys,0x70a9,0)==1);
+        int dirty=0, play_now=0;
+        if(k_prev && !sl.last_prev && sl.count>0) {
+            int nxt=(sl.active>0)?(sl.active-1):(sl.count-1);
+            sl_activate_slot(nxt);
+            dirty=1; play_now=1;
+        }
+        if(k_next && !sl.last_next && sl.count>0) {
+            int nxt=(sl.active+1<sl.count)?(sl.active+1):0;
+            sl_activate_slot(nxt);
+            dirty=1; play_now=1;
+        }
+        if(k_ok && !sl.last_ok) { play_now=1; }
+        if(k_c1 && !sl.last_c1) { sl.hi_repeat^=1; dirty=1; }
+        sl.last_prev=k_prev; sl.last_next=k_next; sl.last_ok=k_ok; sl.last_c1=k_c1;
+
+        if(touch==5) {
+            if(!sl.touch_down && x>=0 && x<640 && y>=0 && y<480) {
+                sl.touch_down=1; sl.touch_x=x; sl.touch_y=y;
+            }
+        } else if(touch==6 && sl.touch_down) {
+            short tx=sl.touch_x, ty=sl.touch_y;
+            sl.touch_down=0;
+            if(tx<22 || tx>=618 || ty<26 || ty>=454) {
+                film_native_view_hide(&ui.view);
+            } else if(tx>=34 && tx<354 && ty>=70 && ty<70+SL_VIS_ROWS*44) {
+                int r=(ty-70)/44;
+                int idx=sl.scroll+r;
+                if(idx>=0 && idx<sl.count) {
+                    sl_activate_slot(idx);
+                    dirty=1; play_now=1;
+                }
+            } else if(tx>=384 && tx<600 && ty>=294 && ty<336) {
+                play_now=1;
+            } else if(tx>=384 && tx<600 && ty>=346 && ty<384) {
+                sl.hi_repeat^=1;
+                dirty=1;
+            }
+        }
+        if(dirty && ui.view.menu.visible)draw(0,&ui.view.menu);
+        if(play_now && ui_theme.beep_play) {
+            int pid=sl_current_sound_id();
+            if(pid) {
+                ui_theme.last_shutter_beep_ms=now;
+                ui_theme.beep_play(ui.background,pid);
+            }
+        }
+    } else {
+        sl.touch_down=0;
+        sl.last_prev=sl.last_next=sl.last_ok=sl.last_c1=0;
+    }
+#else
     static const int dismiss_keys[]={0x3,0x15,0x30,0x66,0xa7,0x1ac,0x1af,
         0x1f0,0x1f4,0x1f7,0x1f8,0x1f9,0x7095,0x70a9,0x70aa,0x70ab,
         0x70ad,0x70c4,0x10000000,0x10000001,0x10000003,0x10000004};
@@ -1707,6 +1815,7 @@ static void animate(void *self) {
             draw(0,&ui.view.menu);
         }
     }
+#endif /* !A6400_SOUND_LITE */
     /* V4.0 Native MENU Full Touch (MTF2, credit: ivica00). Suppressed whenever our
      * Film Menu, Album Preview, or Instant Pop-up is active (or until the finger
      * lifts after closing one of them), or when toggled OFF. */
@@ -1733,6 +1842,7 @@ static void animate(void *self) {
     (void)v4_busy_before; (void)v4_busy_now;
 #endif
 #ifdef A6400_CHARO_SHUTTER
+#ifndef A6400_SOUND_LITE
     if(change&FILM_MENU_SOUND_TOGGLED) {
 #if defined(A6400_CHARO_MULTI) && A6400_CHARO_MULTI
         ui_theme.shutter_sound_enabled=(ui_theme.shutter_sound_enabled+1)&3;
@@ -1749,15 +1859,23 @@ static void animate(void *self) {
             record("CHARO_MENU_BEEP_PREVIEW",preview_id,(int)now);
         }
     }
+#endif
     int shutter_down=ui.key(ui.keys,A6400_CHARO_SHUTTER_KEY,0);
-    if(shutter_down==1 && ui_theme.shutter_sound_enabled) {
+#ifdef A6400_SOUND_LITE
+    int cur_sound_id=sl_current_sound_id();
+    int allow_repeat=sl.hi_repeat;
+#else
+    int cur_sound_id=charo_sound_id(ui_theme.shutter_sound_enabled);
+    int allow_repeat=1;
+#endif
+    if(shutter_down==1 && cur_sound_id) {
         if(ui_theme.last_shutter_key==0) {
             ui_theme.shutter_pending=1;
             ui_theme.shutter_repeating=0;
             ui_theme.shutter_arm_ms=now;
             ui_theme.shutter_hold_ms=now;
-            record("CHARO_SHUTTER_ARMED",charo_sound_id(ui_theme.shutter_sound_enabled),(int)now);
-        } else if(!ui_theme.shutter_pending) {
+            record("CHARO_SHUTTER_ARMED",cur_sound_id,(int)now);
+        } else if(allow_repeat && !ui_theme.shutter_pending) {
             uint32_t wait_ms=ui_theme.shutter_repeating?A6400_CHARO_REPEAT_MS:A6400_CHARO_HOLD_DELAY_MS;
             if((uint32_t)(now-ui_theme.shutter_hold_ms)>=wait_ms) {
                 ui_theme.shutter_pending=1;
@@ -1771,14 +1889,14 @@ static void animate(void *self) {
     }
     ui_theme.last_shutter_key=(shutter_down==1)?1:0;
     if(ui_theme.shutter_pending &&
-       ui_theme.shutter_sound_enabled &&
+       cur_sound_id &&
        ui_theme.beep_play
 #if A6400_CHARO_DELAY_MS > 0
        && (uint32_t)(now-ui_theme.shutter_arm_ms)>=A6400_CHARO_DELAY_MS
 #endif
        ) {
         ui_theme.shutter_pending=0;
-        int active_id=charo_sound_id(ui_theme.shutter_sound_enabled);
+        int active_id=cur_sound_id;
         if(active_id
 #if A6400_CHARO_COOLDOWN_MS > 0
            && (!ui_theme.last_shutter_beep_ms ||
@@ -1904,6 +2022,9 @@ int a6400_ui_attach_v1(void *system,unsigned tid) {
     }
     ui_v4.popup_border=make(0);
     v4_hide_native_img();
+#ifdef A6400_SOUND_LITE
+    if(sl_build_widgets(make)!=0)return -5;
+#endif
     hide_menu_widgets();
 #ifdef A6400_CHARO_SHUTTER
     ui_theme.shutter_sound_enabled=1;

@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet("install", "rollback", "diag", "cleanup")]
     [string]$Action = "install",
     [ValidateSet("", "tc", "sc")]
