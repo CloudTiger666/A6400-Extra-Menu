@@ -640,6 +640,49 @@ static void stop_preview_subsystem(void) {
     }
 }
 
+#define ALBUM_CACHE_SLOTS 14u
+static char album_cache_names[ALBUM_CACHE_SLOTS][16];
+static unsigned album_cache_next = 0u;
+
+static int album_cache_copy_file(const char *src_path,const char *tmp_path,const char *dst_path) {
+    int sfd=open(src_path,O_RDONLY|O_NOFOLLOW);
+    if(sfd<0)return -1;
+    int ok=(copy_fd_exact(sfd,tmp_path,dst_path,A6400_PV_ALBUM_FILE_BYTES)==0);
+    close(sfd);
+    return ok?0:-1;
+}
+static int album_cache_load(const char *name) {
+    if(!name || !name[0])return -1;
+    for(unsigned i=0u;i<ALBUM_CACHE_SLOTS;++i) {
+        if(strcmp(album_cache_names[i],name)==0) {
+            char cpath[64];
+            snprintf(cpath,sizeof(cpath),"%s/ac_%02u.bin",A6400_PV_DIR,i);
+            if(album_cache_copy_file(cpath,A6400_PV_CURRENT ".tmp",A6400_PV_CURRENT)==0)
+                return 0;
+            album_cache_names[i][0]=0;
+            return -1;
+        }
+    }
+    return -1;
+}
+static void album_cache_store_from(const char *name,const char *src_path) {
+    if(!name || !name[0] || !src_path)return;
+    unsigned idx=ALBUM_CACHE_SLOTS;
+    for(unsigned i=0u;i<ALBUM_CACHE_SLOTS;++i) {
+        if(strcmp(album_cache_names[i],name)==0){idx=i;break;}
+    }
+    if(idx==ALBUM_CACHE_SLOTS) {
+        idx=album_cache_next%ALBUM_CACHE_SLOTS;
+        album_cache_next=(album_cache_next+1u)%ALBUM_CACHE_SLOTS;
+    }
+    char ctmp[64],cdst[64];
+    snprintf(ctmp,sizeof(ctmp),"%s/ac_%02u.bin.tmp",A6400_PV_DIR,idx);
+    snprintf(cdst,sizeof(cdst),"%s/ac_%02u.bin",A6400_PV_DIR,idx);
+    if(album_cache_copy_file(src_path,ctmp,cdst)==0) {
+        snprintf(album_cache_names[idx],sizeof(album_cache_names[idx]),"%.15s",name);
+    }
+}
+
 static void publish_v4_shot(int applied,const char *settings,const char *target,int hires) {
     v4_ring_init();
     if(!applied) {
@@ -673,6 +716,7 @@ static void publish_v4_shot(int applied,const char *settings,const char *target,
     toast_preset_name(settings?settings:"",preset,sizeof(preset));
     const char *base=target?strrchr(target,'/'):NULL;
     base=base?base+1:(target?target:"");
+    if(base[0])album_cache_store_from(base,slot_dst);
     const char *qstr=(hires==2)?"12MP":(hires==1?"6MP":"1.7MP");
     snprintf(v4_ring.slot_labels[slot],sizeof(v4_ring.slot_labels[slot]),
              "%.18s %s (%.14s)",preset,qstr,base);
@@ -1228,6 +1272,7 @@ static int decode_test_jpeg(const char *name,uint32_t seq,uint32_t slot) {
     char source[40];
     if(snprintf(source,sizeof(source),"A:/A6400/TEST/%s",name)!=26)return -1;
     if(!album_request_matches(seq,slot))return -2;
+    if(album_cache_load(name)==0)return 0;
     if(album_input_mount())return -1;
     char *reader[]={(char *)"/tmp_bt/a6400-film-native-command.elf",(char *)"readback",source,0};
     int rc=run_exec_until_left(reader[0],reader,seq,slot);
@@ -1237,6 +1282,7 @@ static int decode_test_jpeg(const char *name,uint32_t seq,uint32_t slot) {
         rc=run_exec_until_left(worker[0],worker,seq,slot);
     }
     album_release_mount();
+    if(rc==0)album_cache_store_from(name,A6400_PV_CURRENT);
     if(rc==-2)unlink(A6400_PV_CURRENT);
     return rc;
 }
