@@ -1998,6 +1998,7 @@ int a6400_ui_attach_v1(void *system,unsigned tid) {
         ui.panels[i]=make(0);
         if(!ui.panels[i])return -5;
     }
+#ifndef A6400_SOUND_LITE
     for(unsigned i=0;i<6u;i++){
         ui_theme.row_accents[i]=make(0);
         if(!ui_theme.row_accents[i])return -5;
@@ -2008,6 +2009,7 @@ int a6400_ui_attach_v1(void *system,unsigned tid) {
             if(!ui_theme.chips[i][k])return -5;
         }
     }
+#endif
     ui_theme.page_btn=make(0);
     ui_theme.page_btn_accent=make(0);
     if(!ui_theme.page_btn || !ui_theme.page_btn_accent)return -5;

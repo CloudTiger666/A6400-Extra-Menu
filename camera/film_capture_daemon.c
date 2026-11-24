@@ -1549,6 +1549,13 @@ static void service_test_album(struct transport *t,int idle) {(void)t;(void)idle
 
 int main(int argc,char **argv) {
     if(argc!=2 || strcmp(argv[1],"watch"))return 2;
+#ifdef A6400_SOUND_LITE
+    for(;;) {
+        if(access("/tmp_bt/a6400-film.DISABLE",F_OK)==0 ||
+           access("/tmp_bt/a6400-film-capture.stop",F_OK)==0) return 0;
+        sleep(2);
+    }
+#endif
     /* Startup stdout can already contain bootstrap/guard evidence. Own a
      * separate fresh file; never adopt or truncate that preceding stream. */
     if(film_log_open(&capture_log,FILM_CAPTURE_RUNTIME_LOG,1))return 22;

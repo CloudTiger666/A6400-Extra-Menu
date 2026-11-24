@@ -54,10 +54,11 @@ if [ -f "$ROOT/assets/a6400-charo-shutter.pcm" ]; then
     fi
 fi
 
-echo "[2/9] Building persistent V4.3 SLEM (hany) UI (charo=$CHARO_ENABLE multi=$CHARO_MULTI sc=${A6400_UI_LANG_SC:-0} mtf2=${A6400_MTF2_ENABLE:-1})..."
+echo "[2/9] Building persistent V4.3 SLEM (hany) UI (charo=$CHARO_ENABLE multi=$CHARO_MULTI sc=${A6400_UI_LANG_SC:-0} mtf2=${A6400_MTF2_ENABLE:-1} sound_lite=${A6400_SOUND_LITE:-0})..."
 rm -rf "$OUT/ui"
 A6400_TRIAL_MS=0 \
 A6400_DISPLAY_MS=0 \
+A6400_SOUND_LITE="${A6400_SOUND_LITE:-0}" \
 A6400_CHARO_SHUTTER="$CHARO_ENABLE" \
 A6400_CHARO_MULTI="$CHARO_MULTI" \
 A6400_UI_LANG_SC="${A6400_UI_LANG_SC:-0}" \
@@ -155,6 +156,7 @@ echo "[8/9] Building persistent capture daemon..."
 rm -rf "$OUT/daemon"
 FILM_CAPTURE_PERSISTENT=1 \
 A6400_UI_LANG_SC="${A6400_UI_LANG_SC:-0}" \
+A6400_SOUND_LITE="${A6400_SOUND_LITE:-0}" \
 FILM_UI_DIR="$OUT/ui" \
     sh "$ROOT/host-tests/build_film_capture_daemon.sh" \
     "$OUT/daemon" "$LIBS" "$OUT/a6400-film-ram-job.sh" "$OUT/menu/a6400-film-menu-job.elf"

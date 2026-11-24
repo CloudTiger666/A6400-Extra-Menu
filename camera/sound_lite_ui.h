@@ -176,7 +176,7 @@ static int sl_ends_with_pcm(const char *name) {
             (ext[3] == 'm' || ext[3] == 'M'));
 }
 
-static void sl_scan_slots(void) {
+static void sl_scan_slots_ex(int scan_sd) {
     unsigned char tmp[SL_PCM_MAX];
     sl.count = 0;
 
@@ -234,42 +234,41 @@ static void sl_scan_slots(void) {
     }
 #endif
 
-    /* Optional SD card custom .pcm slots in /A6400/SOUNDS/ */
-    static const char *const sd_dirs[] = {
-        "/mnt/mmcblk0p1/A6400/SOUNDS",
-        "/storage/A6400/SOUNDS",
-    };
-    for (unsigned d = 0; d < 2u && sl.count < SL_MAX_SLOTS; d++) {
-        DIR *dir = opendir(sd_dirs[d]);
-        if (!dir) continue;
-        struct dirent *ent;
-        while ((ent = readdir(dir)) != 0 && sl.count < SL_MAX_SLOTS) {
-            if (!sl_ends_with_pcm(ent->d_name)) continue;
-            char full[300];
-            snprintf(full, sizeof(full), "%s/%s", sd_dirs[d], ent->d_name);
-            int n = sl_read_file_exact(full, tmp, SL_PCM_MAX);
-            if (n <= 0) continue;
-            struct sl_slot *s = &sl.slots[sl.count++];
-            s->kind = SL_KIND_SD_PCM;
-            s->sound_id = 0x34;
-            /* Strip .pcm extension for display */
-            size_t len = strlen(ent->d_name);
-            if (len > 4) len -= 4;
-            if (len > sizeof(s->name) - 1) len = sizeof(s->name) - 1;
-            memcpy(s->name, ent->d_name, len);
-            s->name[len] = 0;
-            sl_format_dur(n, s->dur);
-            snprintf(s->sub, sizeof(s->sub), "%s", SL_S_SD_SUB);
-            snprintf(s->path, sizeof(s->path), "%s", full);
-            sl_compute_wave(tmp, n, s->wave);
+    /* Optional SD card custom .pcm slots in /mnt/A6400/SOUNDS/ */
+    if (scan_sd && sl.count < SL_MAX_SLOTS) {
+        DIR *dir = opendir("/mnt/A6400/SOUNDS");
+        if (dir) {
+            struct dirent *ent;
+            while ((ent = readdir(dir)) != 0 && sl.count < SL_MAX_SLOTS) {
+                if (!sl_ends_with_pcm(ent->d_name)) continue;
+                char full[300];
+                snprintf(full, sizeof(full), "/mnt/A6400/SOUNDS/%s", ent->d_name);
+                int n = sl_read_file_exact(full, tmp, SL_PCM_MAX);
+                if (n <= 0) continue;
+                struct sl_slot *s = &sl.slots[sl.count++];
+                s->kind = SL_KIND_SD_PCM;
+                s->sound_id = 0x34;
+                size_t len = strlen(ent->d_name);
+                if (len > 4) len -= 4;
+                if (len > sizeof(s->name) - 1) len = sizeof(s->name) - 1;
+                memcpy(s->name, ent->d_name, len);
+                s->name[len] = 0;
+                sl_format_dur(n, s->dur);
+                snprintf(s->sub, sizeof(s->sub), "%s", SL_S_SD_SUB);
+                snprintf(s->path, sizeof(s->path), "%s", full);
+                sl_compute_wave(tmp, n, s->wave);
+            }
+            closedir(dir);
         }
-        closedir(dir);
-        break;
     }
 
     if (sl.active >= sl.count) sl.active = sl.count > 1 ? 1 : 0;
     if (sl.active == 0 && sl.count > 1 && !sl.initialized) sl.active = 1;
     sl.initialized = 1;
+}
+
+static void sl_scan_slots(void) {
+    sl_scan_slots_ex(1);
 }
 
 static int sl_activate_slot(int idx) {
@@ -371,7 +370,7 @@ static int sl_build_widgets(void *(*make_fn)(int)) {
         if (!sl.row_l[i] || !sl.row_r[i]) return -5;
     }
     sl.hi_repeat = 1;
-    sl_scan_slots();
+    sl_scan_slots_ex(0);
     return 0;
 }
 

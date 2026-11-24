@@ -84,6 +84,8 @@ if ui_dir:
         text += [f'#define FILM_DAEMON_V4_RVA 0x{int(vm[0], 16):x}u\n']
 if os.environ.get('A6400_UI_LANG_SC', '0') == '1':
     text += ['#define A6400_UI_LANG_SC 1\n']
+if os.environ.get('A6400_SOUND_LITE', '0') == '1':
+    text += ['#define A6400_SOUND_LITE 1\n']
 if persistent=='1':
     text += ['#define MAX_FILES 1024u\n',
              '#define CAPTURE_STOP_GRACE_MS 500u\n',
