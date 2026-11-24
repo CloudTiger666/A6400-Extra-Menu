@@ -1,17 +1,19 @@
 #ifndef A6400_SOUND_LITE_UI_H
 #define A6400_SOUND_LITE_UI_H
 
-/* C2 Warm Cream (#F2EDE4) + Deep Charcoal (#161618) Sound Deck UI for Sound Lite.
- * Compiled into native_film_ui_trial3.c only when -DA6400_SOUND_LITE=1.
- * Avoids stdio (fopen/fwrite/fread/rename/access/fprintf) to preserve libc-2.11.2 pins. */
+/* Minimalist Matte Black (#121213) + Warm Cream (#F2EDE4) Sound Deck UI for Sound Lite.
+ * Designed strictly for Sony's native white GEN_Label + lightweight widget budget:
+ *   - Only 10 GEN_Labels & 20 GEN_Panels total (fewer than V4.3 SLEM -> 0 lag!)
+ *   - High-contrast white text on matte obsidian, framed & accented in warm cream (#F2EDE4).
+ *   - Supports up to 16 slots (OFF + 3 built-in + SD card .pcm files in /mnt/A6400/SOUNDS). */
 
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
 
 #define SL_MAX_SLOTS 16
-#define SL_VIS_ROWS  8
-#define SL_WAVE_BARS 16
+#define SL_VIS_ROWS  6
+#define SL_WAVE_BARS 8
 #define SL_PCM_MAX   29760
 
 enum sl_slot_kind {
@@ -25,9 +27,8 @@ struct sl_slot {
     int sound_id; /* 0x34, 0x33, 0x35 */
     char name[28];
     char dur[10];
-    char sub[40];
     char path[300];
-    unsigned char wave[SL_WAVE_BARS]; /* 6..56 px bar height */
+    unsigned char wave[SL_WAVE_BARS]; /* 8..54 px bar height */
 };
 
 struct sl_state {
@@ -43,18 +44,19 @@ struct sl_state {
     /* Touch & key edge tracking */
     int touch_down;
     short touch_x, touch_y;
-    int last_prev, last_next, last_ok, last_exit, last_c1;
+    int last_prev, last_next, last_ok, last_c1;
 
-    /* Native GEN_Panel / GEN_Text widgets */
-    void *left_bg, *right_bg, *v_div, *hdr_div;
+    /* Lean native widgets (20 panels + 10 labels total -> zero compositor lag) */
+    void *outer_bdr, *left_bg, *right_bg, *v_div, *hdr_div;
     void *row_bgs[SL_VIS_ROWS];
-    void *r_badge_bg, *wave_border, *wave_bg, *btn1_bg, *btn2_bg;
+    void *row_acc; /* single cream accent bar on the active row */
+    void *wave_bdr, *wave_bg;
     void *wave_bars[SL_WAVE_BARS];
+    void *btn1_bdr, *btn1_bg, *btn2_bdr, *btn2_bg;
 
-    void *l_title, *l_cnt, *l_hint;
-    void *row_l[SL_VIS_ROWS];
-    void *row_r[SL_VIS_ROWS];
-    void *r_badge, *r_state, *r_slot, *r_name, *r_sub, *r_btn1, *r_btn2, *r_foot;
+    void *l_hdr;
+    void *row_lbl[SL_VIS_ROWS];
+    void *r_name, *r_btn1, *r_btn2;
 };
 
 static struct sl_state sl;
@@ -62,44 +64,26 @@ static struct sl_state sl;
 #if defined(A6400_UI_LANG_SC) && A6400_UI_LANG_SC
 #define SL_S_BOOT_TOAST   "Sound Lite 已就绪"
 #define SL_S_OFF_NAME     "关闭快门音效"
-#define SL_S_OFF_SUB      "原厂静音 · 不发声"
-#define SL_S_B1_NAME      "经典快门 1 (主快门)"
-#define SL_S_B1_SUB       "内置主快门声 · 零冷却"
-#define SL_S_B2_NAME      "清脆快門 2 (连拍音)"
-#define SL_S_B2_SUB       "内置清脆机械 · 零冷却"
-#define SL_S_B3_NAME      "轻快快门 3 (轻拍音)"
-#define SL_S_B3_SUB       "内置轻盈快门 · 零冷却"
-#define SL_S_SD_SUB       "SD 自定义 16kHz PCM"
-#define SL_S_STATE_ON     "● 已启用"
-#define SL_S_STATE_OFF    "○ 已静音"
+#define SL_S_B1_NAME      "经典快门 1"
+#define SL_S_B2_NAME      "清脆快门 2"
+#define SL_S_B3_NAME      "轻快快门 3"
 #define SL_S_BTN_PLAY     "▶ 试听快门音"
-#define SL_S_BTN_HI_ON    "Hi+ 连拍模式：开"
-#define SL_S_BTN_HI_OFF   "Hi+ 连拍模式：关"
-#define SL_S_SCROLL_HINT  "▲ 拨轮 / 触控切换 (SD卡 /A6400/SOUNDS) ▼"
-#define SL_S_FOOT_HINT    "方向键 / 触控选择 · MENU 返回取景"
+#define SL_S_BTN_HI_ON    "Hi+ 连拍：开"
+#define SL_S_BTN_HI_OFF   "Hi+ 连拍：关"
 #else
 #define SL_S_BOOT_TOAST   "Sound Lite 已就緒"
 #define SL_S_OFF_NAME     "關閉快門音效"
-#define SL_S_OFF_SUB      "原廠靜音 · 不發聲"
-#define SL_S_B1_NAME      "經典快門 1 (主快門)"
-#define SL_S_B1_SUB       "內建主快門聲 · 零冷卻"
-#define SL_S_B2_NAME      "清脆快門 2 (連拍音)"
-#define SL_S_B2_SUB       "內建清脆機械 · 零冷卻"
-#define SL_S_B3_NAME      "輕快快門 3 (輕拍音)"
-#define SL_S_B3_SUB       "內建輕盈快門 · 零冷卻"
-#define SL_S_SD_SUB       "SD 自訂 16kHz PCM"
-#define SL_S_STATE_ON     "● 已啟用"
-#define SL_S_STATE_OFF    "○ 已靜音"
+#define SL_S_B1_NAME      "經典快門 1"
+#define SL_S_B2_NAME      "清脆快門 2"
+#define SL_S_B3_NAME      "輕快快門 3"
 #define SL_S_BTN_PLAY     "▶ 試聽快門音"
-#define SL_S_BTN_HI_ON    "Hi+ 連拍模式：開"
-#define SL_S_BTN_HI_OFF   "Hi+ 連拍模式：關"
-#define SL_S_SCROLL_HINT  "▲ 撥輪 / 觸控切換 (SD卡 /A6400/SOUNDS) ▼"
-#define SL_S_FOOT_HINT    "方向鍵 / 觸控選擇 · MENU 返回取景"
+#define SL_S_BTN_HI_ON    "Hi+ 連拍：開"
+#define SL_S_BTN_HI_OFF   "Hi+ 連拍：關"
 #endif
 
 static void sl_compute_wave(const unsigned char *pcm, int bytes, unsigned char out[SL_WAVE_BARS]) {
     if (!pcm || bytes < 64) {
-        for (int i = 0; i < SL_WAVE_BARS; i++) out[i] = 6;
+        for (int i = 0; i < SL_WAVE_BARS; i++) out[i] = 8;
         return;
     }
     int samples = bytes / 2;
@@ -121,9 +105,9 @@ static void sl_compute_wave(const unsigned char *pcm, int bytes, unsigned char o
         if (pk > max_pk) max_pk = pk;
     }
     for (int b = 0; b < SL_WAVE_BARS; b++) {
-        int h = 6 + (peaks[b] * 50) / max_pk;
-        if (h < 6) h = 6;
-        if (h > 56) h = 56;
+        int h = 8 + (peaks[b] * 46) / max_pk;
+        if (h < 8) h = 8;
+        if (h > 54) h = 54;
         out[b] = (unsigned char)h;
     }
 }
@@ -161,7 +145,7 @@ static int sl_write_wps_pbc_inplace(const unsigned char *buf, int valid_bytes) {
 
 static void sl_format_dur(int bytes, char out[10]) {
     if (bytes <= 0) { strcpy(out, "0.25s"); return; }
-    int ms = (bytes * 100) / 32000; /* centiseconds at 16kHz 16-bit mono */
+    int ms = (bytes * 100) / 32000;
     if (ms < 1) ms = 1;
     snprintf(out, 10, "%d.%02ds", ms / 100, ms % 100);
 }
@@ -187,12 +171,10 @@ static void sl_scan_slots_ex(int scan_sd) {
         s->sound_id = 0;
         snprintf(s->name, sizeof(s->name), "%s", SL_S_OFF_NAME);
         snprintf(s->dur, sizeof(s->dur), "OFF");
-        snprintf(s->sub, sizeof(s->sub), "%s", SL_S_OFF_SUB);
         s->path[0] = 0;
-        for (int i = 0; i < SL_WAVE_BARS; i++) s->wave[i] = 6;
+        for (int i = 0; i < SL_WAVE_BARS; i++) s->wave[i] = 8;
     }
 
-    /* Built-in shutter slot(s) if mounted by charo_bind */
     if (!sl.has_base_pcm) {
         int n = sl_read_file_exact("/tmp_bt/a6400-charo-shutter.pcm", sl.base_pcm, SL_PCM_MAX);
         if (n > 0) sl.has_base_pcm = n;
@@ -203,7 +185,6 @@ static void sl_scan_slots_ex(int scan_sd) {
         s->sound_id = 0x34;
         snprintf(s->name, sizeof(s->name), "%s", SL_S_B1_NAME);
         sl_format_dur(sl.has_base_pcm, s->dur);
-        snprintf(s->sub, sizeof(s->sub), "%s", SL_S_B1_SUB);
         snprintf(s->path, sizeof(s->path), "/tmp_bt/a6400-charo-shutter.pcm");
         sl_compute_wave(sl.base_pcm, sl.has_base_pcm, s->wave);
     }
@@ -216,7 +197,6 @@ static void sl_scan_slots_ex(int scan_sd) {
             s->sound_id = 0x33;
             snprintf(s->name, sizeof(s->name), "%s", SL_S_B2_NAME);
             sl_format_dur(n, s->dur);
-            snprintf(s->sub, sizeof(s->sub), "%s", SL_S_B2_SUB);
             s->path[0] = 0;
             sl_compute_wave(tmp, n, s->wave);
         }
@@ -227,14 +207,12 @@ static void sl_scan_slots_ex(int scan_sd) {
             s->sound_id = 0x35;
             snprintf(s->name, sizeof(s->name), "%s", SL_S_B3_NAME);
             sl_format_dur(n, s->dur);
-            snprintf(s->sub, sizeof(s->sub), "%s", SL_S_B3_SUB);
             s->path[0] = 0;
             sl_compute_wave(tmp, n, s->wave);
         }
     }
 #endif
 
-    /* Optional SD card custom .pcm slots in /mnt/A6400/SOUNDS/ */
     if (scan_sd && sl.count < SL_MAX_SLOTS) {
         DIR *dir = opendir("/mnt/A6400/SOUNDS");
         if (dir) {
@@ -254,7 +232,6 @@ static void sl_scan_slots_ex(int scan_sd) {
                 memcpy(s->name, ent->d_name, len);
                 s->name[len] = 0;
                 sl_format_dur(n, s->dur);
-                snprintf(s->sub, sizeof(s->sub), "%s", SL_S_SD_SUB);
                 snprintf(s->path, sizeof(s->path), "%s", full);
                 sl_compute_wave(tmp, n, s->wave);
             }
@@ -305,42 +282,41 @@ static int sl_current_sound_id(void) {
 static void sl_hide_widgets(void) {
     static const unsigned char clear_c[4] = {0, 0, 0, 0};
     void *panels[] = {
-        sl.left_bg, sl.right_bg, sl.v_div, sl.hdr_div,
-        sl.r_badge_bg, sl.wave_border, sl.wave_bg, sl.btn1_bg, sl.btn2_bg
+        sl.outer_bdr, sl.left_bg, sl.right_bg, sl.v_div, sl.hdr_div,
+        sl.row_acc, sl.wave_bdr, sl.wave_bg, sl.btn1_bdr, sl.btn1_bg, sl.btn2_bdr, sl.btn2_bg
     };
     for (unsigned i = 0; i < sizeof(panels) / sizeof(panels[0]); i++) {
         if (panels[i]) { place(panels[i], 0, 0, 0, 0, 0); paint(panels[i], clear_c); }
     }
     for (int i = 0; i < SL_VIS_ROWS; i++) {
         if (sl.row_bgs[i]) { place(sl.row_bgs[i], 0, 0, 0, 0, 0); paint(sl.row_bgs[i], clear_c); }
-        if (sl.row_l[i]) { place(sl.row_l[i], 1, 0, 0, 0, 0); write_lbl(sl.row_l[i], ""); }
-        if (sl.row_r[i]) { place(sl.row_r[i], 1, 0, 0, 0, 0); write_lbl(sl.row_r[i], ""); }
+        if (sl.row_lbl[i]) { place(sl.row_lbl[i], 1, 0, 0, 0, 0); write_lbl(sl.row_lbl[i], ""); }
     }
     for (int i = 0; i < SL_WAVE_BARS; i++) {
         if (sl.wave_bars[i]) { place(sl.wave_bars[i], 0, 0, 0, 0, 0); paint(sl.wave_bars[i], clear_c); }
     }
-    void *lbls[] = {
-        sl.l_title, sl.l_cnt, sl.l_hint,
-        sl.r_badge, sl.r_state, sl.r_slot, sl.r_name, sl.r_sub,
-        sl.r_btn1, sl.r_btn2, sl.r_foot
-    };
+    void *lbls[] = { sl.l_hdr, sl.r_name, sl.r_btn1, sl.r_btn2 };
     for (unsigned i = 0; i < sizeof(lbls) / sizeof(lbls[0]); i++) {
         if (lbls[i]) { place(lbls[i], 1, 0, 0, 0, 0); write_lbl(lbls[i], ""); }
     }
 }
 
 static int sl_build_widgets(void *(*make_fn)(int)) {
-    sl.left_bg = make_fn(0);
-    sl.right_bg = make_fn(0);
-    sl.v_div = make_fn(0);
-    sl.hdr_div = make_fn(0);
-    sl.r_badge_bg = make_fn(0);
-    sl.wave_border = make_fn(0);
-    sl.wave_bg = make_fn(0);
-    sl.btn1_bg = make_fn(0);
-    sl.btn2_bg = make_fn(0);
-    if (!sl.left_bg || !sl.right_bg || !sl.v_div || !sl.hdr_div ||
-        !sl.r_badge_bg || !sl.wave_border || !sl.wave_bg || !sl.btn1_bg || !sl.btn2_bg)
+    sl.outer_bdr = make_fn(0);
+    sl.left_bg   = make_fn(0);
+    sl.right_bg  = make_fn(0);
+    sl.v_div     = make_fn(0);
+    sl.hdr_div   = make_fn(0);
+    sl.row_acc   = make_fn(0);
+    sl.wave_bdr  = make_fn(0);
+    sl.wave_bg   = make_fn(0);
+    sl.btn1_bdr  = make_fn(0);
+    sl.btn1_bg   = make_fn(0);
+    sl.btn2_bdr  = make_fn(0);
+    sl.btn2_bg   = make_fn(0);
+    if (!sl.outer_bdr || !sl.left_bg || !sl.right_bg || !sl.v_div || !sl.hdr_div ||
+        !sl.row_acc || !sl.wave_bdr || !sl.wave_bg || !sl.btn1_bdr || !sl.btn1_bg ||
+        !sl.btn2_bdr || !sl.btn2_bg)
         return -5;
     for (int i = 0; i < SL_VIS_ROWS; i++) {
         sl.row_bgs[i] = make_fn(0);
@@ -350,24 +326,14 @@ static int sl_build_widgets(void *(*make_fn)(int)) {
         sl.wave_bars[i] = make_fn(0);
         if (!sl.wave_bars[i]) return -5;
     }
-    sl.l_title = make_fn(1);
-    sl.l_cnt = make_fn(1);
-    sl.l_hint = make_fn(1);
-    sl.r_badge = make_fn(1);
-    sl.r_state = make_fn(1);
-    sl.r_slot = make_fn(1);
+    sl.l_hdr  = make_fn(1);
     sl.r_name = make_fn(1);
-    sl.r_sub = make_fn(1);
     sl.r_btn1 = make_fn(1);
     sl.r_btn2 = make_fn(1);
-    sl.r_foot = make_fn(1);
-    if (!sl.l_title || !sl.l_cnt || !sl.l_hint || !sl.r_badge || !sl.r_state ||
-        !sl.r_slot || !sl.r_name || !sl.r_sub || !sl.r_btn1 || !sl.r_btn2 || !sl.r_foot)
-        return -5;
+    if (!sl.l_hdr || !sl.r_name || !sl.r_btn1 || !sl.r_btn2) return -5;
     for (int i = 0; i < SL_VIS_ROWS; i++) {
-        sl.row_l[i] = make_fn(1);
-        sl.row_r[i] = make_fn(1);
-        if (!sl.row_l[i] || !sl.row_r[i]) return -5;
+        sl.row_lbl[i] = make_fn(1);
+        if (!sl.row_lbl[i]) return -5;
     }
     sl.hi_repeat = 1;
     sl_scan_slots_ex(0);
@@ -375,108 +341,81 @@ static int sl_build_widgets(void *(*make_fn)(int)) {
 }
 
 static void sl_draw_deck(void) {
-    /* C2 Warm Cream (#F2EDE4) + Deep Charcoal (#161618) palette */
-    static const unsigned char c_scrim[4]      = {  8,   9,  10, 198};
-    static const unsigned char c_cream[4]      = {242, 237, 228, 255}; /* #F2EDE4 */
-    static const unsigned char c_cream_r[4]    = {234, 228, 216, 255}; /* #EAE4D8 */
-    static const unsigned char c_cream_hi[4]   = {245, 241, 232, 255}; /* #F5F1E8 */
-    static const unsigned char c_divider[4]    = {220, 213, 200, 255}; /* #DCD5C8 */
-    static const unsigned char c_pill_bg[4]    = {223, 216, 202, 255}; /* #DFD8CA */
-    static const unsigned char c_wave_bdr[4]   = {216, 208, 194, 255}; /* #D8D0C2 */
-    static const unsigned char c_btn2_bdr[4]   = {204, 196, 181, 255}; /* #CCC4B5 */
-    static const unsigned char c_charcoal[4]   = { 22,  22,  24, 255}; /* #161618 */
-    static const unsigned char c_dark_ink[4]   = { 30,  30,  32, 255}; /* #1E1E20 */
-    static const unsigned char c_muted_ink[4]  = {108, 102,  92, 255}; /* #6C665C */
-    static const unsigned char c_bar_dim[4]    = {203, 195, 180, 255}; /* #CBC3B4 */
-    static const unsigned char c_clear[4]      = {  0,   0,   0,   0};
-    int has_lc = (ui_label_color != 0);
-    const unsigned char *unsel_bg = has_lc ? c_cream : c_charcoal;
-    const unsigned char *r_chip_bg = has_lc ? c_pill_bg : c_charcoal;
-    const unsigned char *btn2_fill = has_lc ? c_btn2_bdr : c_charcoal;
+    /* Minimalist Warm Cream (#F2EDE4) + Matte Obsidian (#121213)
+     * 100% compatible with Sony's native white GEN_Label -> crystal clear & zero lag! */
+    static const unsigned char c_scrim[4]     = {  0,   0,   0, 175};
+    static const unsigned char c_cream[4]     = {242, 237, 228, 255}; /* #F2EDE4 warm cream */
+    static const unsigned char c_cream_dim[4] = {150, 144, 134, 220}; /* muted warm stone */
+    static const unsigned char c_bg_left[4]   = { 18,  18,  20, 248}; /* #121214 matte black */
+    static const unsigned char c_bg_right[4]  = { 12,  12,  14, 248}; /* #0C0C0E deep black */
+    static const unsigned char c_row_idle[4]  = { 24,  24,  27, 255}; /* subtle card */
+    static const unsigned char c_row_sel[4]   = { 44,  42,  38, 255}; /* warm charcoal active */
+    static const unsigned char c_btn_bg[4]    = { 34,  33,  30, 255}; /* dark warm button */
+    static const unsigned char c_div[4]       = { 68,  65,  58, 235}; /* hairline */
+    static const unsigned char c_clear[4]     = {  0,   0,   0,   0};
 
-    place(ui.background, 0, 0, 0, 640, 480); paint(ui.background, c_scrim);
-    place(sl.left_bg,    0, 22, 26, 344, 428); paint(sl.left_bg, c_cream);
-    place(sl.right_bg,   0, 366, 26, 252, 428); paint(sl.right_bg, c_cream_r);
-    place(sl.v_div,      0, 366, 26, 1, 428); paint(sl.v_div, c_divider);
-    place(sl.hdr_div,    0, 34, 62, 320, 1); paint(sl.hdr_div, c_divider);
+    place(ui.background, 0, 0, 0, 640, 480);  paint(ui.background, c_scrim);
+    /* Crisp 2px Warm Cream outer frame around Matte Black Sound Deck */
+    place(sl.outer_bdr,  0, 22, 26, 596, 428); paint(sl.outer_bdr, c_cream);
+    place(sl.left_bg,    0, 24, 28, 342, 424); paint(sl.left_bg, c_bg_left);
+    place(sl.right_bg,   0, 366, 28, 250, 424); paint(sl.right_bg, c_bg_right);
+    place(sl.v_div,      0, 366, 28, 1, 424);   paint(sl.v_div, c_div);
+    place(sl.hdr_div,    0, 36, 68, 318, 1);    paint(sl.hdr_div, c_div);
 
-    char hdr_l[40], hdr_r[16];
-    snprintf(hdr_l, sizeof(hdr_l), "SOUND DECK · %d SLOTS", sl.count > 0 ? sl.count - 1 : 0);
-    snprintf(hdr_r, sizeof(hdr_r), "%02d / %02d", sl.active, sl.count > 0 ? sl.count - 1 : 0);
-    place(sl.l_title, 1, 36, 36, 236, 24); write_lbl(sl.l_title, hdr_l);
-    place(sl.l_cnt,   1, 274, 36, 80, 24); write_lbl(sl.l_cnt, hdr_r);
-    if (has_lc) { ui_label_color(sl.l_title, c_charcoal); ui_label_color(sl.l_cnt, c_muted_ink); }
+    char hdr[48];
+    snprintf(hdr, sizeof(hdr), "SOUND DECK   %02d / %02d", sl.active, sl.count > 0 ? sl.count - 1 : 0);
+    place(sl.l_hdr, 1, 40, 36, 312, 28);
+    write_lbl(sl.l_hdr, hdr);
 
+    int acc_drawn = 0;
     for (int r = 0; r < SL_VIS_ROWS; r++) {
         int idx = sl.scroll + r;
-        int ry = 70 + r * 44;
+        int ry = 78 + r * 58;
         if (idx >= sl.count) {
             place(sl.row_bgs[r], 0, 0, 0, 0, 0); paint(sl.row_bgs[r], c_clear);
-            place(sl.row_l[r],   1, 0, 0, 0, 0); write_lbl(sl.row_l[r], "");
-            place(sl.row_r[r],   1, 0, 0, 0, 0); write_lbl(sl.row_r[r], "");
+            place(sl.row_lbl[r], 1, 0, 0, 0, 0); write_lbl(sl.row_lbl[r], "");
             continue;
         }
         int sel = (idx == sl.active);
         const struct sl_slot *s = &sl.slots[idx];
-        place(sl.row_bgs[r], 0, 34, ry, 320, 40);
-        paint(sl.row_bgs[r], sel ? c_charcoal : unsel_bg);
-
-        char row_txt[40];
-        snprintf(row_txt, sizeof(row_txt), "%02d  %s", idx, s->name);
-        place(sl.row_l[r], 1, 46, ry + 8, 238, 24);
-        write_lbl(sl.row_l[r], row_txt);
-        place(sl.row_r[r], 1, 288, ry + 8, 56, 24);
-        write_lbl(sl.row_r[r], s->dur);
-        if (has_lc) {
-            ui_label_color(sl.row_l[r], sel ? c_cream_hi : c_dark_ink);
-            ui_label_color(sl.row_r[r], sel ? c_cream_hi : c_muted_ink);
+        place(sl.row_bgs[r], 0, 36, ry, 318, 50);
+        paint(sl.row_bgs[r], sel ? c_row_sel : c_row_idle);
+        if (sel) {
+            place(sl.row_acc, 0, 36, ry, 6, 50);
+            paint(sl.row_acc, c_cream);
+            acc_drawn = 1;
         }
+        char line[48];
+        snprintf(line, sizeof(line), "%02d  %s  (%s)", idx, s->name, s->dur);
+        place(sl.row_lbl[r], 1, 52, ry + 11, 294, 28);
+        write_lbl(sl.row_lbl[r], line);
     }
+    if (!acc_drawn) { place(sl.row_acc, 0, 0, 0, 0, 0); paint(sl.row_acc, c_clear); }
 
-    place(sl.l_hint, 1, 34, 426, 320, 22);
-    write_lbl(sl.l_hint, SL_S_SCROLL_HINT);
-    if (has_lc) ui_label_color(sl.l_hint, c_muted_ink);
-
-    /* Right Panel */
+    /* Right Panel: Active Slot Name + Warm Cream Waveform + 2 Cream-Bordered Buttons */
     const struct sl_slot *cur = (sl.active >= 0 && sl.active < sl.count) ? &sl.slots[sl.active] : &sl.slots[0];
-    place(sl.r_badge_bg, 0, 384, 42, 92, 24); paint(sl.r_badge_bg, r_chip_bg);
-    place(sl.r_badge,    1, 390, 44, 82, 20); write_lbl(sl.r_badge, "16kHz PCM");
-    place(sl.r_state,    1, 514, 44, 86, 22); write_lbl(sl.r_state, sl.active > 0 ? SL_S_STATE_ON : SL_S_STATE_OFF);
-    if (has_lc) { ui_label_color(sl.r_badge, c_muted_ink); ui_label_color(sl.r_state, c_charcoal); }
+    char rtitle[48];
+    snprintf(rtitle, sizeof(rtitle), "%02d  %s", sl.active, cur->name);
+    place(sl.r_name, 1, 384, 52, 218, 34);
+    write_lbl(sl.r_name, rtitle);
 
-    char slot_hdr[24];
-    snprintf(slot_hdr, sizeof(slot_hdr), "SLOT %02d", sl.active);
-    place(sl.r_slot, 1, 384, 82, 216, 22); write_lbl(sl.r_slot, slot_hdr);
-    place(sl.r_name, 1, 384, 108, 216, 32); write_lbl(sl.r_name, cur->name);
-    place(sl.r_sub,  1, 384, 144, 216, 24); write_lbl(sl.r_sub, cur->sub);
-    if (has_lc) {
-        ui_label_color(sl.r_slot, c_muted_ink);
-        ui_label_color(sl.r_name, c_charcoal);
-        ui_label_color(sl.r_sub,  c_muted_ink);
-    }
-
-    /* Waveform Box + 16 vertical bars */
-    place(sl.wave_border, 0, 384, 178, 216, 68); paint(sl.wave_border, c_wave_bdr);
-    place(sl.wave_bg,     0, 385, 179, 214, 66); paint(sl.wave_bg, c_cream_hi);
+    place(sl.wave_bdr, 0, 384, 114, 216, 78); paint(sl.wave_bdr, c_cream_dim);
+    place(sl.wave_bg,  0, 385, 115, 214, 76); paint(sl.wave_bg, c_bg_left);
     for (int b = 0; b < SL_WAVE_BARS; b++) {
         int bh = cur->wave[b];
-        int bx = 394 + b * 12;
-        int by = 179 + (66 - bh) / 2;
-        place(sl.wave_bars[b], 0, bx, by, 6, bh);
-        paint(sl.wave_bars[b], (sl.active > 0 && bh >= 16) ? c_charcoal : c_bar_dim);
+        int bx = 400 + b * 24;
+        int by = 115 + (76 - bh) / 2;
+        place(sl.wave_bars[b], 0, bx, by, 10, bh);
+        paint(sl.wave_bars[b], (sl.active > 0 && bh >= 16) ? c_cream : c_cream_dim);
     }
 
-    /* Action Buttons */
-    place(sl.btn1_bg, 0, 384, 294, 216, 42); paint(sl.btn1_bg, c_charcoal);
-    place(sl.r_btn1,  1, 396, 304, 192, 24); write_lbl(sl.r_btn1, SL_S_BTN_PLAY);
-    if (has_lc) ui_label_color(sl.r_btn1, c_cream_hi);
+    place(sl.btn1_bdr, 0, 384, 250, 216, 52); paint(sl.btn1_bdr, c_cream);
+    place(sl.btn1_bg,  0, 386, 252, 212, 48); paint(sl.btn1_bg, c_btn_bg);
+    place(sl.r_btn1,   1, 398, 263, 192, 28); write_lbl(sl.r_btn1, SL_S_BTN_PLAY);
 
-    place(sl.btn2_bg, 0, 384, 346, 216, 38); paint(sl.btn2_bg, btn2_fill);
-    place(sl.r_btn2,  1, 396, 354, 192, 24); write_lbl(sl.r_btn2, sl.hi_repeat ? SL_S_BTN_HI_ON : SL_S_BTN_HI_OFF);
-    if (has_lc) ui_label_color(sl.r_btn2, c_dark_ink);
-
-    place(sl.r_foot,  1, 384, 426, 216, 22); write_lbl(sl.r_foot, SL_S_FOOT_HINT);
-    if (has_lc) ui_label_color(sl.r_foot, c_muted_ink);
+    place(sl.btn2_bdr, 0, 384, 320, 216, 52); paint(sl.btn2_bdr, sl.hi_repeat ? c_cream : c_div);
+    place(sl.btn2_bg,  0, 386, 322, 212, 48); paint(sl.btn2_bg, c_row_idle);
+    place(sl.r_btn2,   1, 398, 333, 192, 28); write_lbl(sl.r_btn2, sl.hi_repeat ? SL_S_BTN_HI_ON : SL_S_BTN_HI_OFF);
 }
 
 #endif

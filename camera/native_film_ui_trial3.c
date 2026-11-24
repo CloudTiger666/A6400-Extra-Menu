@@ -510,9 +510,6 @@ static void *find_bmp_thunk(uintptr_t bmp_base,const char *sym_name,
     }
     return 0;
 }
-#ifdef A6400_SOUND_LITE
-static color_fn ui_label_color=0;
-#endif
 static __attribute__((noinline)) int resolve(void) {
 #define API(member,type,name,offset) do {ui.member=(type)api(name,offset);if(!ui.member)return -1;}while(0)
     API(widget_ctor,ctor_fn,"_ZN2ux6wgtsys6WidgetC1Ev",0x5ed5ad);
@@ -539,11 +536,6 @@ static __attribute__((noinline)) int resolve(void) {
 #ifdef A6400_CHARO_SHUTTER
     ui_theme.beep_play=(beep_play_fn)api("_ZN13AppWidgetBase8beepPlayEi",0);
     if(!ui_theme.beep_play)return -1;
-#endif
-#ifdef A6400_SOUND_LITE
-    ui_label_color=(color_fn)dlsym(RTLD_DEFAULT,"_ZN9GEN_Label14setColorDirectERKN6stella6CColorE");
-    if(!ui_label_color)ui_label_color=(color_fn)dlsym(RTLD_DEFAULT,"_ZN9GEN_Label12setTextColorERKN6stella6CColorE");
-    if(!ui_label_color)ui_label_color=(color_fn)dlsym(RTLD_DEFAULT,"_ZN9GEN_Label12setFontColorERKN6stella6CColorE");
 #endif
     /* Optional native GEN_CacheInsImg + RGBA4444 (CreateImageParam fmt=7, same as
      * Sony's GEN_QRCode) zero-flicker preview renderer. */
@@ -1587,16 +1579,16 @@ static void animate(void *self) {
             sl.touch_down=0;
             if(tx<22 || tx>=618 || ty<26 || ty>=454) {
                 film_native_view_hide(&ui.view);
-            } else if(tx>=34 && tx<354 && ty>=70 && ty<70+SL_VIS_ROWS*44) {
-                int r=(ty-70)/44;
+            } else if(tx>=36 && tx<354 && ty>=78 && ty<78+SL_VIS_ROWS*58) {
+                int r=(ty-78)/58;
                 int idx=sl.scroll+r;
                 if(idx>=0 && idx<sl.count) {
                     sl_activate_slot(idx);
                     dirty=1; play_now=1;
                 }
-            } else if(tx>=384 && tx<600 && ty>=294 && ty<336) {
+            } else if(tx>=384 && tx<600 && ty>=250 && ty<302) {
                 play_now=1;
-            } else if(tx>=384 && tx<600 && ty>=346 && ty<384) {
+            } else if(tx>=384 && tx<600 && ty>=320 && ty<372) {
                 sl.hi_repeat^=1;
                 dirty=1;
             }
